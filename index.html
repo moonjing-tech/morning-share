@@ -4,6 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>晨会分享平台</title>
+  <!-- App更新追踪页面 -->
+<div class="main" id="appPage" style="display:none">
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px">
+    <div class="back-btn" onclick="showPage('list')">← 返回</div>
+    <h2 style="font-size:20px;font-weight:700">📱 公募基金 App 更新追踪</h2>
+    <div style="flex:1"></div>
+    <select id="appFilter" onchange="filterApps()" style="padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:#0f1629;color:var(--text);font-size:13px">
+      <option value="">全部公司</option>
+      <option>汇添富</option><option>东方财富</option><option>易方达</option>
+      <option>华夏基金</option><option>南方基金</option><option>博时基金</option>
+      <option>富国基金</option><option>嘉实基金</option><option>广发基金</option><option>招商基金</option>
+    </select>
+  </div>
+  <div id="appGrid" style="display:flex;flex-direction:column;gap:16px"></div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
