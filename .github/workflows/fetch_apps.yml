@@ -1,0 +1,19 @@
+name: Fetch App Store Updates
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 每天北京时间10点（UTC+8 = UTC 2点）
+  workflow_dispatch:       # 允许手动触发
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install requests supabase
+      - run: python scripts/fetch_apps.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
