@@ -7,16 +7,21 @@ sb = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # 前十大公募基金 App 列表
 APPS = [
-    {"app_id": "1061838086", "app_name": "现金宝",     "company": "汇添富"},
-    {"app_id": "527113431",  "app_name": "天天基金",   "company": "东方财富"},
-    {"app_id": "1175098087", "app_name": "易方达基金", "company": "易方达"},
-    {"app_id": "1454488621", "app_name": "招商基金",   "company": "招商基金"},
-    {"app_id": "1498322836", "app_name": "广发基金",   "company": "广发基金"},
-    {"app_id": "1052705093", "app_name": "富国基金",   "company": "富国基金"},
-    {"app_id": "1447218681", "app_name": "嘉实财富",   "company": "嘉实基金"},
-    {"app_id": "1126716492", "app_name": "华夏基金",   "company": "华夏基金"},
-    {"app_id": "1054872879", "app_name": "南方基金",   "company": "南方基金"},
-    {"app_id": "1531993539", "app_name": "博时基金",   "company": "博时基金"},
+    # 基金公司官方 App
+    {"app_id": "1061838086", "app_name": "现金宝",      "company": "汇添富"},
+    {"app_id": "531212368",  "app_name": "天天基金",    "company": "东方财富"},
+    {"app_id": "768124701",  "app_name": "易方达e钱包", "company": "易方达"},
+    {"app_id": "446353004",  "app_name": "华夏基金管家","company": "华夏基金"},
+    {"app_id": "509475928",  "app_name": "南方基金",    "company": "南方基金"},
+    {"app_id": "680525846",  "app_name": "广发基金",    "company": "广发基金"},
+    {"app_id": "673859685",  "app_name": "富国富钱包",  "company": "富国基金"},
+    {"app_id": "714814035",  "app_name": "嘉实理财嘉",  "company": "嘉实基金"},
+    {"app_id": "862981607",  "app_name": "招商基金",    "company": "招商基金"},
+    {"app_id": "672198904",  "app_name": "博时基金",    "company": "博时基金"},
+    # 主流基金投资平台
+    {"app_id": "1104871195", "app_name": "且慢",        "company": "且慢"},
+    {"app_id": "6511224711", "app_name": "涨乐",        "company": "华泰证券"},
+    {"app_id": "1025628019", "app_name": "蚂蚁财富",    "company": "蚂蚁集团"},
 ]
 
 def fetch_app_info(app_id):
