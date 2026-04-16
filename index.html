@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>晨会分享平台</title>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#080c18;--card:rgba(15,20,40,0.65);--border:rgba(79,142,247,0.15);--grad:linear-gradient(135deg,#4f8ef7 0%,#7c3aed 55%,#06b6d4 100%);--text:#e2e8f0;--text2:#94a3b8;--radius:16px}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle at 30% 20%,rgba(79,142,247,0.06) 0%,transparent 50%),radial-gradient(circle at 70% 80%,rgba(124,58,237,0.05) 0%,transparent 50%);pointer-events:none;z-index:0}
+.header{position:sticky;top:0;z-index:100;backdrop-filter:blur(20px);background:rgba(8,12,24,0.8);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:22px;font-weight:700;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-actions{display:flex;gap:10px}
+.btn{padding:8px 20px;border-radius:10px;border:none;cursor:pointer;font-size:14px;font-weight:600;transition:all .3s}
+.btn-primary{background:var(--grad);color:#fff;box-shadow:0 4px 20px rgba(79,142,247,0.3)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 28px rgba(79,142,247,0.45)}
+.btn-ghost{background:rgba(79,142,247,0.08);color:#4f8ef7;border:1px solid rgba(79,142,247,0.2)}
+.btn-ghost:hover{background:rgba(79,142,247,0.15)}
+.btn-danger{background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2)}
+.btn-danger:hover{background:rgba(239,68,68,0.2)}
+.main{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:32px 24px}
+.upload-zone{border:2px dashed rgba(79,142,247,0.25);border-radius:var(--radius);padding:48px;text-align:center;cursor:pointer;transition:all .3s;background:var(--card);backdrop-filter:blur(12px);margin-bottom:32px}
+.upload-zone:hover,.upload-zone.dragover{border-color:#4f8ef7;background:rgba(79,142,247,0.06)}
+.upload-zone svg{width:48px;height:48px;margin-bottom:12px;color:#4f8ef7}
+.upload-zone p{color:var(--text2);font-size:14px;margin-top:8px}
+.upload-zone .formats{font-size:12px;color:#64748b;margin-top:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px}
+.card{background:var(--card);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .3s}
+.card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(79,142,247,0.15);border-color:rgba(79,142,247,0.3)}
+.card-cover{height:180px;background:linear-gradient(135deg,rgba(79,142,247,0.1),rgba(124,58,237,0.1));display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.card-cover img{width:100%;height:100%;object-fit:cover}
+.card-cover .type-badge{position:absolute;top:12px;right:12px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;backdrop-filter:blur(8px)}
+.badge-pdf{background:rgba(239,68,68,0.2);color:#f87171;border:1px solid rgba(239,68,68,0.3)}
+.badge-ppt{background:rgba(249,115,22,0.2);color:#fb923c;border:1px solid rgba(249,115,22,0.3)}
+.badge-word{background:rgba(59,130,246,0.2);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)}
+.badge-link{background:rgba(6,182,212,0.2);color:#22d3ee;border:1px solid rgba(6,182,212,0.3)}
+.card-body{padding:16px 20px 20px}
+.card-title{font-size:16px;font-weight:700;margin-bottom:8px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-summary{font-size:13px;color:var(--text2);line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.card-meta{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:#64748b}
+.card-author{display:flex;align-items:center;gap:6px}
+.avatar{width:22px;height:22px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700}
+.parse-status{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:10px}
+.status-done{background:rgba(34,197,94,0.1);color:#4ade80}
+.status-parsing{background:rgba(250,204,21,0.1);color:#facc15;animation:pulse 1.5s infinite}
+.status-error{background:rgba(239,68,68,0.1);color:#f87171}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.empty{text-align:center;padding:80px 20px;color:var(--text2)}
+.empty svg{width:64px;height:64px;margin-bottom:16px;color:#334155}
+.empty p{font-size:15px}
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center}
+.modal-mask.show{display:flex}
+.modal{background:#0f1629;border:1px solid var(--border);border-radius:20px;width:90%;max-width:520px;max-height:85vh;overflow-y:auto;padding:32px;position:relative}
+.modal h2{font-size:20px;font-weight:700;margin-bottom:20px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.modal label{display:block;font-size:13px;color:var(--text2);margin-bottom:6px;margin-top:16px}
+.modal input,.modal textarea{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.04);color:var(--text);font-size:14px;outline:none;transition:border .2s}
+.modal input:focus,.modal textarea:focus{border-color:#4f8ef7}
+.modal textarea{resize:vertical;min-height:80px}
+.modal-actions{display:flex;gap:10px;margin-top:24px;justify-content:flex-end}
+.close-btn{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px}
+.close-btn:hover{background:rgba(255,255,255,0.06)}
+.detail-page{display:none;position:relative;z-index:1}
+.detail-header{display:flex;align-items:center;gap:16px;margin-bottom:24px;flex-wrap:wrap}
+.back-btn{display:flex;align-items:center;gap:6px;color:#4f8ef7;cursor:pointer;font-size:14px;font-weight:600;padding:8px 16px;border-radius:10px;background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.15);transition:all .2s}
+.back-btn:hover{background:rgba(79,142,247,0.15)}
+.detail-info{background:var(--card);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:var(--radius);padding:28px;margin-bottom:24px}
+.detail-title{font-size:24px;font-weight:700;margin-bottom:8px}
+.detail-meta{display:flex;gap:16px;color:var(--text2);font-size:13px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.detail-summary{color:var(--text2);font-size:14px;line-height:1.8}
+.detail-summary h4{color:var(--text);font-size:15px;margin:12px 0 6px}
+.highlights-list{list-style:none;padding:0}
+.highlights-list li{padding:6px 0;padding-left:18px;position:relative;font-size:13px;line-height:1.6}
+.highlights-list li::before{content:'';position:absolute;left:0;top:12px;width:6px;height:6px;border-radius:50%;background:var(--grad)}
+.detail-preview{background:var(--card);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:var(--radius);padding:28px;min-height:400px}
+.detail-preview h3{font-size:16px;font-weight:700;margin-bottom:16px;color:var(--text)}
+#pdf-pages{display:flex;flex-direction:column;align-items:center;gap:12px}
+#pdf-pages canvas{max-width:100%;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.3)}
+.word-content{background:#fff;color:#222;padding:32px;border-radius:12px;max-height:70vh;overflow-y:auto;line-height:1.8;font-size:14px}
+.word-content img{max-width:100%}
+.ppt-notice,.link-notice{text-align:center;padding:40px;color:var(--text2)}
+.ppt-notice svg,.link-notice svg{width:48px;height:48px;margin-bottom:12px}
+.toast-container{position:fixed;top:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 20px;border-radius:12px;font-size:13px;font-weight:500;backdrop-filter:blur(12px);border:1px solid;animation:slideIn .3s ease}
+.toast-success{background:rgba(34,197,94,0.1);color:#4ade80;border-color:rgba(34,197,94,0.2)}
+.toast-error{background:rgba(239,68,68,0.1);color:#f87171;border-color:rgba(239,68,68,0.2)}
+.toast-info{background:rgba(79,142,247,0.1);color:#60a5fa;border-color:rgba(79,142,247,0.2)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.loading-bar{position:fixed;top:0;left:0;height:3px;background:var(--grad);z-index:999;transition:width .3s;display:none}
+.provider-btns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.provider-btn{padding:6px 14px;border-radius:8px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);transition:all .2s}
+.provider-btn:hover{background:rgba(79,142,247,0.15);color:#4f8ef7}
+@media(max-width:768px){.header{padding:12px 16px}.header h1{font-size:18px}.main{padding:16px 12px}.grid{grid-template-columns:1fr}.upload-zone{padding:32px 16px}.modal{width:95%;padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="loading-bar" id="loadingBar"></div>
+<div class="toast-container" id="toasts"></div>
+<header class="header">
+  <h1>🚀 晨会分享平台</h1>
+  <div class="header-actions">
+    <button class="btn btn-ghost" onclick="openAIConfig()">⚙️ AI配置</button>
+    <button class="btn btn-primary" onclick="openUpload()">+ 上传分享</button>
+  </div>
+</header>
+<div class="main" id="listPage">
+  <div class="upload-zone" id="dropZone" onclick="openUpload()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17"/></svg>
+    <p>点击上传或拖拽文件到此处</p>
+    <div class="formats">支持 PDF / PPT / PPTX / DOC / DOCX，或粘贴链接</div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776"/></svg>
+    <p>还没有分享内容，上传第一个吧 ✨</p>
+  </div>
+</div>
+<div class="main detail-page" id="detailPage">
+  <div class="detail-header">
+    <div class="back-btn" onclick="goBack()">← 返回列表</div>
+    <div style="flex:1"></div>
+    <button class="btn btn-ghost" onclick="editItem()">✏️ 编辑</button>
+    <button class="btn btn-danger" onclick="deleteItem()">🗑 删除</button>
+  </div>
+  <div class="detail-info" id="detailInfo"></div>
+  <div class="detail-preview" id="detailPreview"></div>
+</div>
+<!-- Upload Modal -->
+<div class="modal-mask" id="uploadModal">
+  <div class="modal">
+    <button class="close-btn" onclick="closeModal('uploadModal')">&times;</button>
+    <h2>📤 上传分享</h2>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="btn btn-ghost" style="flex:1" onclick="switchUploadTab('file')" id="tabFile">📁 上传文件</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="switchUploadTab('link')" id="tabLink">🔗 粘贴链接</button>
+    </div>
+    <div id="fileUploadArea">
+      <label>选择文件</label>
+      <input type="file" id="fileInput" accept=".pdf,.ppt,.pptx,.doc,.docx">
+    </div>
+    <div id="linkUploadArea" style="display:none">
+      <label>链接地址</label>
+      <input type="url" id="linkInput" placeholder="https://...">
+    </div>
+    <label>标题</label>
+    <input type="text" id="titleInput" placeholder="分享标题（可选，AI自动生成）">
+    <label>分享人</label>
+    <input type="text" id="authorInput" placeholder="你的名字">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('uploadModal')">取消</button>
+      <button class="btn btn-primary" onclick="doUpload()" id="uploadBtn">上传并解析</button>
+    </div>
+  </div>
+</div>
+<!-- Edit Modal -->
+<div class="modal-mask" id="editModal">
+  <div class="modal">
+    <button class="close-btn" onclick="closeModal('editModal')">&times;</button>
+    <h2>✏️ 编辑信息</h2>
+    <label>标题</label>
+    <input type="text" id="editTitle">
+    <label>分享人</label>
+    <input type="text" id="editAuthor">
+    <label>摘要</label>
+    <textarea id="editSummary" rows="4"></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('editModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveEdit()">保存</button>
+    </div>
+  </div>
+</div>
+<!-- AI Config Modal -->
+<div class="modal-mask" id="aiConfigModal">
+  <div class="modal">
+    <button class="close-btn" onclick="closeModal('aiConfigModal')">&times;</button>
+    <h2>🤖 AI 配置</h2>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px">配置用于自动生成摘要的AI接口（兼容 OpenAI 格式）</p>
+    <label>快速选择</label>
+    <div class="provider-btns">
+      <button class="provider-btn" onclick="setProvider('doubao')">🌋 豆包</button>
+      <button class="provider-btn" onclick="setProvider('deepseek')">🔮 DeepSeek</button>
+      <button class="provider-btn" onclick="setProvider('openai')">💚 OpenAI</button>
+      <button class="provider-btn" onclick="setProvider('qwen')">🟣 通义千问</button>
+    </div>
+    <label>API 地址</label>
+    <input type="text" id="aiUrl" placeholder="https://...">
+    <label>API Key</label>
+    <input type="password" id="aiKey" placeholder="sk-...">
+    <label>模型名称</label>
+    <input type="text" id="aiModel" placeholder="model name">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('aiConfigModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveAIConfig()">保存配置</button>
+    </div>
+  </div>
+</div>
+<script>
+var SB='https://onjsynypkulmuccfanxl.supabase.co';
+var KEY='sb_publishable_AXyuAflG7Ts9G-bAr6zHew_9PwG_I5t';
+var BKT='files';
+var TABLE='shares';
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+var currentItem=null,uploadMode='file';
+
+function sbHeaders(extra){
+  return Object.assign({'apikey':KEY,'Authorization':'Bearer '+KEY,'Content-Type':'application/json','Prefer':'return=representation'},extra||{});
+}
+async function api(path,opt){
+  opt=opt||{};
+  var r=await fetch(SB+'/rest/v1/'+path,Object.assign({headers:sbHeaders(opt.headers)},opt));
+  if(!r.ok)throw new Error(await r.text());
+  return r.json();
+}
+async function sbUpload(file,path){
+  var r=await fetch(SB+'/storage/v1/object/'+BKT+'/'+path,{method:'POST',headers:{'apikey':KEY,'Authorization':'Bearer '+KEY,'Content-Type':file.type||'application/octet-stream','x-upsert':'true'},body:file});
+  if(!r.ok)throw new Error('上传失败: '+await r.text());
+  return SB+'/storage/v1/object/public/'+BKT+'/'+path;
+}
+
+var defaultAI={url:'https://ark.cn-beijing.volces.com/api/v3',key:'b5ec5b5d-3632-4e13-b0f6-f2cef6e841a1',model:'doubao-seed-2-0-code-preview-260215'};
+function getAIConfig(){try{return JSON.parse(localStorage.getItem('ai_config'))||defaultAI}catch(e){return defaultAI}}
+function openAIConfig(){var c=getAIConfig();document.getElementById('aiUrl').value=c.url;document.getElementById('aiKey').value=c.key;document.getElementById('aiModel').value=c.model;showModal('aiConfigModal')}
+function setProvider(p){
+  var m={doubao:{url:'https://ark.cn-beijing.volces.com/api/v3',model:'doubao-seed-2-0-code-preview-260215'},deepseek:{url:'https://api.deepseek.com/v1',model:'deepseek-chat'},openai:{url:'https://api.openai.com/v1',model:'gpt-4o-mini'},qwen:{url:'https://dashscope.aliyuncs.com/compatible-mode/v1',model:'qwen-plus'}};
+  if(m[p]){document.getElementById('aiUrl').value=m[p].url;document.getElementById('aiModel').value=m[p].model}
+}
+function saveAIConfig(){
+  var c={url:document.getElementById('aiUrl').value.trim(),key:document.getElementById('aiKey').value.trim(),model:document.getElementById('aiModel').value.trim()};
+  if(!c.url||!c.key||!c.model)return toast('请填写完整配置','error');
+  localStorage.setItem('ai_config',JSON.stringify(c));toast('AI配置已保存','success');closeModal('aiConfigModal');
+}
+
+async function aiSummarize(text){
+  var cfg=getAIConfig(),t=text.substring(0,8000);
+  var r=await fetch(cfg.url+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.key},body:JSON.stringify({model:cfg.model,messages:[{role:'system',content:'你是专业内容分析助手。根据内容生成结构化摘要。务必以JSON格式返回，不要markdown代码块。格式：{"title":"简洁标题","summary":"100字内摘要","highlights":["要点1","要点2","要点3"]}'},{role:'user',content:t}],temperature:0.3})});
+  if(!r.ok)throw new Error('AI请求失败:'+r.status);
+  var d=await r.json();
+  var c=d.choices[0].message.content.trim().replace(/```json\s*/g,'').replace(/```\s*/g,'');
+  return JSON.parse(c);
+}
+
+async function extractPDFText(file){
+  var buf=await file.arrayBuffer(),pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  var text='';
+  for(var i=1;i<=Math.min(pdf.numPages,20);i++){var pg=await pdf.getPage(i),tc=await pg.getTextContent();text+=tc.items.map(function(x){return x.str}).join(' ')+'\n'}
+  return text;
+}
+async function extractWordText(file){var buf=await file.arrayBuffer(),r=await mammoth.extractRawText({arrayBuffer:buf});return r.value}
+async function generatePDFCover(file){
+  var buf=await file.arrayBuffer(),pdf=await pdfjsLib.getDocument({data:buf}).promise,pg=await pdf.getPage(1),vp=pg.getViewport({scale:1.2}),cv=document.createElement('canvas');
+  cv.width=vp.width;cv.height=vp.height;
+  var ctx=cv.getContext('2d',{willReadFrequently:true});
+  await pg.render({canvasContext:ctx,viewport:vp}).promise;
+  return new Promise(function(r){cv.toBlob(function(b){r(b)},'image/jpeg',0.7)});
+}
+
+function openUpload(){showModal('uploadModal');switchUploadTab('file')}
+function switchUploadTab(tab){
+  uploadMode=tab;
+  document.getElementById('fileUploadArea').style.display=tab==='file'?'':'none';
+  document.getElementById('linkUploadArea').style.display=tab==='link'?'':'none';
+  document.getElementById('tabFile').className='btn '+(tab==='file'?'btn-primary':'btn-ghost');
+  document.getElementById('tabLink').className='btn '+(tab==='link'?'btn-primary':'btn-ghost');
+  document.getElementById('tabFile').style.flex='1';document.getElementById('tabLink').style.flex='1';
+}
+function getType(fn){var e=fn.split('.').pop().toLowerCase();if(e==='pdf')return'pdf';if(e==='ppt'||e==='pptx')return'ppt';if(e==='doc'||e==='docx')return'word';return null}
+
+async function doUpload(){
+  var btn=document.getElementById('uploadBtn');btn.disabled=true;btn.textContent='处理中...';showLoading(true);
+  try{if(uploadMode==='link')await uploadLink();else await uploadFile();toast('上传成功！','success');closeModal('uploadModal');loadList()}
+  catch(e){console.error(e);toast('上传失败: '+e.message,'error')}
+  finally{btn.disabled=false;btn.textContent='上传并解析';showLoading(false)}
+}
+async function uploadLink(){
+  var link=document.getElementById('linkInput').value.trim();if(!link)throw new Error('请输入链接');
+  var title=document.getElementById('titleInput').value.trim()||link,author=document.getElementById('authorInput').value.trim()||'匿名';
+  await api(TABLE,{method:'POST',body:JSON.stringify({title:title,type:'link',summary:'链接分享: '+link,highlights:'[]',author:author,file_path:link,parse_status:'done',original_filename:link})});
+}
+async function uploadFile(){
+  var fileEl=document.getElementById('fileInput'),file=fileEl.files[0];
+  if(!file)throw new Error('请选择文件');
+  var type=getType(file.name);if(!type)throw new Error('不支持的文件格式');
+  var author=document.getElementById('authorInput').value.trim()||'匿名';
+  var customTitle=document.getElementById('titleInput').value.trim();
+  var ts=Date.now(),safeName=ts+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  var fileUrl=await sbUpload(file,safeName);
+  var coverUrl=null;
+  if(type==='pdf'){try{var cb=await generatePDFCover(file);coverUrl=await sbUpload(cb,'covers/'+ts+'.jpg')}catch(e){console.warn('Cover fail:',e)}}
+  var arr=await api(TABLE,{method:'POST',body:JSON.stringify({title:customTitle||file.name,type:type,summary:'解析中...',highlights:'[]',author:author,original_filename:file.name,file_path:fileUrl,cover_url:coverUrl,parse_status:'parsing'})});
+  parseBg(arr[0].id,file,type);
+}
+async function parseBg(id,file,type){
+  try{
+    var text='';
+    if(type==='pdf')text=await extractPDFText(file);
+    else if(type==='word')text=await extractWordText(file);
+    else{await api(TABLE+'?id=eq.'+id,{method:'PATCH',body:JSON.stringify({summary:'PPT文件，请下载后查看',parse_status:'done'})});loadList();return}
+    if(!text.trim()){await api(TABLE+'?id=eq.'+id,{method:'PATCH',body:JSON.stringify({summary:'未能提取到文本内容',parse_status:'done',extracted_text:''})});loadList();return}
+    var ai;
+    try{ai=await aiSummarize(text)}catch(e){console.warn('AI fail:',e);ai={title:file.name,summary:text.substring(0,200)+'...',highlights:[]}}
+    await api(TABLE+'?id=eq.'+id,{method:'PATCH',body:JSON.stringify({title:ai.title||file.name,summary:ai.summary||'',highlights:JSON.stringify(ai.highlights||[]),extracted_text:text.substring(0,50000),parse_status:'done'})});
+    toast('AI解析完成 ✨','success');loadList();
+  }catch(e){
+    console.error('Parse err:',e);
+    await api(TABLE+'?id=eq.'+id,{method:'PATCH',body:JSON.stringify({parse_status:'error',summary:'解析失败: '+e.message})});
+    loadList();
+  }
+}
+
+async function loadList(){
+  try{var items=await api(TABLE+'?order=created_at.desc');renderGrid(items)}
+  catch(e){console.error(e);toast('加载失败','error')}
+}
+function renderGrid(items){
+  var grid=document.getElementById('grid'),empty=document.getElementById('empty');
+  if(!items.length){grid.innerHTML='';empty.style.display='';return}
+  empty.style.display='none';
+  grid.innerHTML=items.map(function(it){
+    var bc='badge-'+it.type;
+    var sc=it.parse_status==='done'?'status-done':it.parse_status==='parsing'?'status-parsing':'status-error';
+    var st=it.parse_status==='done'?'✓ 已解析':it.parse_status==='parsing'?'⏳ 解析中':'✗ 失败';
+    var cv=it.cover_url?'<img src="'+it.cover_url+'" alt="cover">':'<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:#334155"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>';
+    var dt=new Date(it.created_at).toLocaleDateString('zh-CN',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    var ini=(it.author||'匿')[0];
+    return '<div class="card" onclick="openDetail(\''+it.id+'\')"><div class="card-cover">'+cv+'<span class="type-badge '+bc+'">'+it.type.toUpperCase()+'</span></div><div class="card-body"><div class="card-title">'+esc(it.title)+'</div><div class="card-summary">'+esc(it.summary)+'</div><div class="card-meta"><div class="card-author"><span class="avatar">'+esc(ini)+'</span> '+esc(it.author||'匿名')+'</div><div style="display:flex;align-items:center;gap:8px"><span class="parse-status '+sc+'">'+st+'</span><span>'+dt+'</span></div></div></div></div>';
+  }).join('');
+}
+
+async function openDetail(id){
+  showLoading(true);
+  try{
+    var arr=await api(TABLE+'?id=eq.'+id);var item=arr[0];
+    if(!item)throw new Error('未找到');
+    currentItem=item;renderDetail(item);
+    document.getElementById('listPage').style.display='none';
+    document.getElementById('detailPage').style.display='block';
+    window.scrollTo(0,0);
+  }catch(e){toast('加载详情失败: '+e.message,'error')}
+  finally{showLoading(false)}
+}
+function renderDetail(it){
+  var hl=[];try{hl=JSON.parse(it.highlights||'[]')}catch(e){}
+  var dt=new Date(it.created_at).toLocaleString('zh-CN');
+  var hlH=hl.length?'<h4>💡 核心要点</h4><ul class="highlights-list">'+hl.map(function(h){return'<li>'+esc(h)+'</li>'}).join('')+'</ul>':'';
+  document.getElementById('detailInfo').innerHTML='<div class="detail-title">'+esc(it.title)+'</div><div class="detail-meta"><span class="card-author"><span class="avatar">'+esc((it.author||'匿')[0])+'</span> '+esc(it.author||'匿名')+'</span><span>📅 '+dt+'</span><span class="type-badge badge-'+it.type+'" style="font-size:12px">'+it.type.toUpperCase()+'</span></div><div class="detail-summary"><h4>📝 摘要</h4><p>'+esc(it.summary)+'</p>'+hlH+'</div>';
+  renderPreview(it);
+}
+async function renderPreview(it){
+  var c=document.getElementById('detailPreview');c.innerHTML='<h3>📄 内容预览</h3>';
+  if(it.type==='pdf'){
+    c.innerHTML+='<div id="pdf-pages" style="margin-top:12px"></div>';
+    try{
+      var r=await fetch(it.file_path),buf=await r.arrayBuffer(),pdf=await pdfjsLib.getDocument({data:buf}).promise,pg=document.getElementById('pdf-pages');
+      for(var i=1;i<=pdf.numPages;i++){
+        var p=await pdf.getPage(i),vp=p.getViewport({scale:1.5}),cv=document.createElement('canvas');
+        cv.width=vp.width;cv.height=vp.height;
+        var ctx=cv.getContext('2d',{willReadFrequently:true});
+        await p.render({canvasContext:ctx,viewport:vp}).promise;pg.appendChild(cv);
+      }
+    }catch(e){c.innerHTML+='<p style="color:#f87171;text-align:center;padding:20px">PDF加载失败: '+esc(e.message)+'</p>'}
+  }else if(it.type==='word'){
+    try{var r2=await fetch(it.file_path),buf2=await r2.arrayBuffer(),res=await mammoth.convertToHtml({arrayBuffer:buf2});c.innerHTML+='<div class="word-content">'+res.value+'</div>'}
+    catch(e){c.innerHTML+='<p style="color:#f87171">Word加载失败: '+esc(e.message)+'</p>'}
+  }else if(it.type==='ppt'){
+    c.innerHTML+='<div class="ppt-notice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:#fb923c"><path d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5"/></svg><p>PPT文件暂不支持在线预览</p><a href="'+it.file_path+'" target="_blank" class="btn btn-primary" style="display:inline-block;margin-top:16px;text-decoration:none">📥 下载查看</a></div>';
+  }else if(it.type==='link'){
+    c.innerHTML+='<div class="link-notice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:#22d3ee"><path d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.04a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364L4.34 8.627"/></svg><p style="margin-bottom:12px">链接地址:</p><a href="'+it.file_path+'" target="_blank" style="color:#4f8ef7;word-break:break-all">'+esc(it.file_path)+'</a><br><a href="'+it.file_path+'" target="_blank" class="btn btn-primary" style="display:inline-block;margin-top:16px;text-decoration:none">🔗 打开链接</a></div>';
+  }
+}
+
+function goBack(){document.getElementById('detailPage').style.display='none';document.getElementById('listPage').style.display='block';currentItem=null}
+function editItem(){if(!currentItem)return;document.getElementById('editTitle').value=currentItem.title;document.getElementById('editAuthor').value=currentItem.author||'';document.getElementById('editSummary').value=currentItem.summary||'';showModal('editModal')}
+async function saveEdit(){
+  if(!currentItem)return;
+  var d={title:document.getElementById('editTitle').value.trim(),author:document.getElementById('editAuthor').value.trim(),summary:document.getElementById('editSummary').value.trim()};
+  try{await api(TABLE+'?id=eq.'+currentItem.id,{method:'PATCH',body:JSON.stringify(d)});toast('保存成功','success');closeModal('editModal');openDetail(currentItem.id)}
+  catch(e){toast('保存失败: '+e.message,'error')}
+}
+async function deleteItem(){
+  if(!currentItem)return;
+  if(!confirm('确定删除「'+currentItem.title+'」？此操作不可恢复。'))return;
+  try{await api(TABLE+'?id=eq.'+currentItem.id,{method:'DELETE'});toast('已删除','success');goBack();loadList()}
+  catch(e){toast('删除失败: '+e.message,'error')}
+}
+
+var dz=document.getElementById('dropZone');
+['dragenter','dragover'].forEach(function(e){dz.addEventListener(e,function(ev){ev.preventDefault();dz.classList.add('dragover')})});
+['dragleave','drop'].forEach(function(e){dz.addEventListener(e,function(ev){ev.preventDefault();dz.classList.remove('dragover')})});
+dz.addEventListener('drop',function(ev){var f=ev.dataTransfer.files[0];if(f){openUpload();switchUploadTab('file');var dt=new DataTransfer();dt.items.add(f);document.getElementById('fileInput').files=dt.files}});
+
+function showModal(id){document.getElementById(id).classList.add('show')}
+function closeModal(id){document.getElementById(id).classList.remove('show')}
+function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+function toast(msg,type){
+  type=type||'info';var c=document.getElementById('toasts'),t=document.createElement('div');
+  t.className='toast toast-'+type;t.textContent=msg;c.appendChild(t);
+  setTimeout(function(){t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(function(){t.remove()},300)},3500);
+}
+function showLoading(show){
+  var b=document.getElementById('loadingBar');
+  if(show){b.style.display='block';b.style.width='0';setTimeout(function(){b.style.width='70%'},50)}
+  else{b.style.width='100%';setTimeout(function(){b.style.display='none';b.style.width='0'},300)}
+}
+document.querySelectorAll('.modal-mask').forEach(function(m){m.addEventListener('click',function(e){if(e.target===m)m.classList.remove('show')})});
+loadList();
+</script>
+</body>
+</html>
