@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>竞品追踪 · 投研工作台</title>
+  <link rel="stylesheet" href="shared/base.css">
+  <link rel="stylesheet" href="shared/nav.css">
+  <style>
+    .page-body{display:flex;height:100vh;overflow:hidden}
+    .content-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+    .filter-row{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+    .filter-row select{padding:7px 14px;border-radius:9px;border:1px solid rgba(120,160,255,0.3);background:rgba(16,24,48,0.9);color:#e2e8f0;font-size:13px;cursor:pointer;outline:none;transition:border .2s}
+    .filter-row select:focus{border-color:#4f8ef7}
+    .filter-row select option{background:#0e1628}
+    .count-label{font-size:12px;color:#4a5f80}
+    .app-grid{display:flex;flex-direction:column;gap:14px}
+    .app-card{background:rgba(16,24,48,0.9);border:1px solid rgba(120,160,255,0.45);border-radius:14px;padding:18px 22px;display:flex;gap:14px;align-items:flex-start;transition:border-color .2s;position:relative;overflow:hidden}
+    .app-card:hover{border-color:rgba(6,182,212,0.75)}
+    .app-card.is-new{border-color:rgba(239,68,68,0.35)}
+    .app-card.is-new::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#ef4444,#f97316)}
+    .app-icon{width:50px;height:50px;border-radius:12px;flex-shrink:0;object-fit:cover}
+    .app-icon-fallback{width:50px;height:50px;border-radius:12px;flex-shrink:0;background:rgba(79,142,247,0.12);border:1px solid rgba(79,142,247,0.3);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#60a5fa}
+    .app-card-body{flex:1;min-width:0}
+    .app-card-title-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+    .app-card-name{font-size:15px;font-weight:700;color:#ffffff}
+    .tag-company{background:rgba(79,142,247,0.15);color:#93c5fd;border:1px solid rgba(79,142,247,0.35);padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+    .tag-version{background:rgba(34,197,94,0.12);color:#6ee7b7;border:1px solid rgba(34,197,94,0.3);padding:2px 9px;border-radius:20px;font-size:11px}
+    .tag-date{color:#7a90b0;font-size:12px}
+    .app-new-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);font-size:10px;font-weight:800;color:#f87171;letter-spacing:.8px;animation:badge-pulse 2s infinite;flex-shrink:0}
+    .app-new-dot{width:4px;height:4px;border-radius:50%;background:#f87171}
+    @keyframes badge-pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.4)}50%{box-shadow:0 0 0 4px rgba(239,68,68,0)}}
+    .app-card-notes{color:#b0c4de;font-size:13px;line-height:1.75;white-space:pre-wrap;word-break:break-word}
+    .app-card-notes.collapsed{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:normal}
+    .toggle-btn{margin-top:6px;font-size:12px;color:#60a5fa;cursor:pointer;user-select:none;display:inline-block}
+    .toggle-btn:hover{text-decoration:underline}
+    .app-empty{text-align:center;padding:64px 20px;color:#94a3b8}
+    .app-empty-icon{font-size:48px;margin-bottom:16px;opacity:.4}
+    .app-empty p{font-size:14px}
+    .sk-card{background:rgba(16,24,48,0.9);border:1px solid rgba(120,160,255,0.35);border-radius:14px;padding:18px 22px;display:flex;gap:14px}
+    .sk-icon{width:50px;height:50px;border-radius:12px;flex-shrink:0}
+    .sk-body{flex:1;display:flex;flex-direction:column;gap:9px;padding-top:4px}
+    .sk-line{height:13px;border-radius:6px}
+    .sk-icon,.sk-line{background:linear-gradient(90deg,rgba(120,160,255,0.06) 25%,rgba(120,160,255,0.13) 50%,rgba(120,160,255,0.06) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite}
+    @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  </style>
+</head>
+<body>
+<div class="page-body">
+  <div id="nav-placeholder"></div>
+  <div class="content-area">
+
+    <header class="header">
+      <div class="header-title">
+        <span class="page-icon">📱</span>
+        <h1>竞品追踪</h1>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-ghost btn-sm" onclick="loadAppUpdates()">🔄 刷新</button>
+      </div>
+    </header>
+
+    <div class="content">
+      <!-- 筛选栏 -->
+      <div class="filter-row">
+        <select id="appFilter" onchange="filterApps()">
+          <option value="">全部公司</option>
+        </select>
+        <span class="count-label" id="count-label"></span>
+      </div>
+
+      <!-- 骨架屏 -->
+      <div id="skeleton-wrap" style="display:flex;flex-direction:column;gap:14px">
+        <div class="sk-card"><div class="sk-icon"></div><div class="sk-body"><div class="sk-line" style="width:50%"></div><div class="sk-line" style="width:88%"></div><div class="sk-line" style="width:70%"></div></div></div>
+        <div class="sk-card"><div class="sk-icon"></div><div class="sk-body"><div class="sk-line" style="width:44%"></div><div class="sk-line" style="width:92%"></div><div class="sk-line" style="width:65%"></div></div></div>
+        <div class="sk-card"><div class="sk-icon"></div><div class="sk-body"><div class="sk-line" style="width:58%"></div><div class="sk-line" style="width:80%"></div><div class="sk-line" style="width:75%"></div></div></div>
+      </div>
+
+      <!-- 列表 -->
+      <div class="app-grid" id="app-grid" style="display:none"></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="shared/config.js"></script>
+<script src="shared/nav.js"></script>
+<script>
+/* ══════════════════════════════════════════
+   状态
+══════════════════════════════════════════ */
+var allUpdates    = [];
+var activeCompany = '';
+var expandedSet   = {};   // { id: true } 记录展开的条目
+
+/* ══════════════════════════════════════════
+   初始化
+══════════════════════════════════════════ */
+async function init() {
+  clearAppNewBadge();
+  await loadAppUpdates();
+}
+
+/* ══════════════════════════════════════════
+   加载数据
+══════════════════════════════════════════ */
+async function loadAppUpdates() {
+  showSkeleton(true);
+  try {
+    var res = await fetch(
+      SUPABASE_URL + '/rest/v1/' + SUPABASE_APP_TABLE +
+      '?select=*&order=release_date.desc,app_name.asc',
+      {
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY
+        }
+      }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    allUpdates = await res.json();
+    buildFilter();
+    showSkeleton(false);        // ← 先切换显示
+    renderAppUpdates(allUpdates);
+  } catch(e) {
+    showSkeleton(false);
+    document.getElementById('app-grid').innerHTML =
+      '<div class="app-empty"><div class="app-empty-icon">⚠️</div><p>加载失败：' + esc(e.message) + '</p></div>';
+  }
+}
+
+/* ══════════════════════════════════════════
+   骨架屏
+══════════════════════════════════════════ */
+function showSkeleton(show) {
+  document.getElementById('skeleton-wrap').style.display = show ? 'flex' : 'none';
+  document.getElementById('app-grid').style.display      = show ? 'none'  : 'flex';
+}
+
+/* ══════════════════════════════════════════
+   构建公司筛选下拉
+══════════════════════════════════════════ */
+function buildFilter() {
+  var companies = [];
+  var seen = {};
+  for (var i = 0; i < allUpdates.length; i++) {
+    var co = allUpdates[i].company;
+    if (co && !seen[co]) { seen[co] = true; companies.push(co); }
+  }
+  companies.sort();
+
+  var sel = document.getElementById('appFilter');
+  var opts = '<option value="">全部公司（' + allUpdates.length + '）</option>';
+  for (var j = 0; j < companies.length; j++) {
+    var co2  = companies[j];
+    var cnt  = allUpdates.filter(function(i) { return i.company === co2; }).length;
+    opts += '<option value="' + esc(co2) + '">' + esc(co2) + '（' + cnt + '）</option>';
+  }
+  sel.innerHTML = opts;
+}
+
+/* ══════════════════════════════════════════
+   筛选
+══════════════════════════════════════════ */
+function filterApps() {
+  activeCompany = document.getElementById('appFilter').value;
+  var list = activeCompany
+    ? allUpdates.filter(function(i) { return i.company === activeCompany; })
+    : allUpdates;
+  renderAppUpdates(list);
+}
+
+/* ══════════════════════════════════════════
+   渲染列表
+══════════════════════════════════════════ */
+function renderAppUpdates(items) {
+  var container = document.getElementById('app-grid');
+  var lastRead  = parseInt(localStorage.getItem(LS_KEYS.appLastReadTime) || '0', 10);
+  var sevenAgo  = Date.now() - 7 * 24 * 3600 * 1000;
+
+  document.getElementById('count-label').textContent =
+    '共 ' + items.length + ' 条';
+
+  if (!items.length) {
+    container.innerHTML =
+      '<div class="app-empty"><div class="app-empty-icon">📭</div><p>暂无数据</p></div>';
+    return;
+  }
+
+  var html = '';
+  for (var i = 0; i < items.length; i++) {
+    var it      = items[i];
+    var t       = it.release_date
+                  ? new Date(it.release_date).getTime()
+                  : new Date(it.created_at).getTime();
+    var isNew   = (t > lastRead && t > sevenAgo);
+    var id      = it.id;
+    var notes   = (it.release_notes || '暂无更新说明').trim();
+    var isLong  = notes.length > 120 || notes.split('\n').length > 3;
+    var expanded = !!expandedSet[id];
+
+    /* 图标 */
+    var iconHtml = it.icon_url
+      ? '<img class="app-icon" src="' + esc(it.icon_url) + '" '
+        + 'onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'">'
+        + '<div class="app-icon-fallback" style="display:none">'
+        + esc((it.company || '?').charAt(0)) + '</div>'
+      : '<div class="app-icon-fallback">'
+        + esc((it.company || '?').charAt(0)) + '</div>';
+
+    /* 更新说明 */
+    var notesHtml =
+      '<div class="app-card-notes' + (isLong && !expanded ? ' collapsed' : '') + '" '
+      + 'id="notes-' + id + '">' + esc(notes) + '</div>';
+
+    /* 展开/收起按钮 */
+    var toggleHtml = isLong
+      ? '<div class="toggle-btn" id="toggle-' + id + '" '
+        + 'onclick="toggleNotes(\'' + id + '\')">'
+        + (expanded ? '▲ 收起' : '▼ 展开全部') + '</div>'
+      : '';
+
+    html +=
+      '<div class="app-card' + (isNew ? ' is-new' : '') + '">'
+      + iconHtml
+      + '<div class="app-card-body">'
+      +   '<div class="app-card-title-row">'
+      +     '<span class="app-card-name">' + esc(it.app_name || '未知应用') + '</span>'
+      +     (it.company ? '<span class="tag-company">' + esc(it.company) + '</span>' : '')
+      +     (it.version ? '<span class="tag-version">v' + esc(it.version) + '</span>' : '')
+      +     (isNew ? '<span class="app-new-tag"><span class="app-new-dot"></span>NEW</span>' : '')
+      +     '<span class="tag-date">'
+      +       (it.release_date || formatDate(it.created_at)) + '</span>'
+      +   '</div>'
+      +   notesHtml
+      +   toggleHtml
+      + '</div>'
+      + '</div>';
+  }
+
+  container.innerHTML = html;
+}
+
+/* ══════════════════════════════════════════
+   展开 / 收起更新说明
+══════════════════════════════════════════ */
+function toggleNotes(id) {
+  if (expandedSet[id]) {
+    delete expandedSet[id];
+  } else {
+    expandedSet[id] = true;
+  }
+  var notesEl  = document.getElementById('notes-' + id);
+  var toggleEl = document.getElementById('toggle-' + id);
+  if (!notesEl || !toggleEl) return;
+
+  if (expandedSet[id]) {
+    notesEl.classList.remove('collapsed');
+    toggleEl.textContent = '▲ 收起';
+  } else {
+    notesEl.classList.add('collapsed');
+    toggleEl.textContent = '▼ 展开全部';
+  }
+}
+
+/* ══════════════════════════════════════════
+   工具函数
+══════════════════════════════════════════ */
+function formatDate(iso) {
+  if (!iso) return '—';
+  var d    = new Date(iso);
+  var now  = new Date();
+  var diff = now - d;
+  var days = Math.floor(diff / 86400000);
+  if (days === 0) return '今天';
+  if (days === 1) return '昨天';
+  if (days  <  7) return days + '天前';
+  return d.getFullYear() + '-'
+    + String(d.getMonth() + 1).padStart(2, '0') + '-'
+    + String(d.getDate()).padStart(2, '0');
+}
+
+function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+/* ══════════════════════════════════════════
+   启动
+══════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

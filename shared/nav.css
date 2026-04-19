@@ -1,0 +1,293 @@
+/* ============================================================
+   投研工作台 · 导航样式
+   shared/nav.css
+   ============================================================ */
+
+/* ── 整体布局骨架 ───────────────────────────────────────────── */
+.layout {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── 侧边栏 ────────────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-width);
+  height: 100vh;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  position: relative;
+  z-index: 100;
+}
+
+/* Logo 区域 */
+.sidebar-logo {
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0 var(--space-md);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.sidebar-logo .logo-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  box-shadow: 0 2px 8px rgba(79, 142, 247, 0.35);
+  flex-shrink: 0;
+}
+.sidebar-logo .logo-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.sidebar-logo .logo-version {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* 导航菜单区 */
+.sidebar-nav {
+  flex: 1;
+  padding: var(--space-sm) var(--space-sm);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 分组标题 */
+.nav-group-label {
+  padding: var(--space-md) var(--space-sm) var(--space-xs);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* 导航项 */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px var(--space-sm);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  position: relative;
+  margin-bottom: 2px;
+  user-select: none;
+}
+.nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.nav-item.active {
+  background: var(--bg-active);
+  color: var(--primary-light);
+  border: 1px solid var(--border-subtle);
+}
+/* 激活态左侧竖线 */
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  height: 60%;
+  width: 3px;
+  background: var(--primary);
+  border-radius: 0 2px 2px 0;
+}
+
+/* 导航图标 */
+.nav-item .nav-icon {
+  font-size: 15px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* 导航文字 */
+.nav-item .nav-label {
+  flex: 1;
+  truncate: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* NEW 徽标（侧边栏） */
+.nav-item .nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--badge-new-bg);
+  color: var(--badge-new-text);
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  animation: badgePulse 2s ease-in-out infinite;
+}
+@keyframes badgePulse {
+  0%, 100% { opacity: 1;    box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+  50%       { opacity: 0.85; box-shadow: 0 0 0 4px rgba(239,68,68,0); }
+}
+
+/* 侧边栏底部 */
+.sidebar-footer {
+  padding: var(--space-sm);
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.sidebar-footer .nav-item {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.sidebar-footer .nav-item:hover {
+  color: var(--text-secondary);
+}
+
+/* ── 主内容区 ───────────────────────────────────────────────── */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ── 顶部 Header ────────────────────────────────────────────── */
+.header {
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-lg);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  z-index: 50;
+}
+
+/* Header 左侧：页面标题 */
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.header-title .page-icon {
+  font-size: 18px;
+}
+.header-title h1 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+/* 面包屑（detail页用） */
+.header-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 13px;
+}
+.header-breadcrumb .crumb-link {
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+.header-breadcrumb .crumb-link:hover {
+  color: var(--primary-light);
+}
+.header-breadcrumb .crumb-sep {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.header-breadcrumb .crumb-current {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Header 右侧：操作按钮区 */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* ── 内容区滚动容器 ─────────────────────────────────────────── */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-lg);
+}
+
+/* ── 分割线 ─────────────────────────────────────────────────── */
+.nav-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: var(--space-xs) var(--space-sm);
+}
+
+/* ── 侧边栏折叠动效（预留） ─────────────────────────────────── */
+.sidebar,
+.sidebar-logo .logo-text,
+.sidebar-logo .logo-version,
+.nav-item .nav-label,
+.nav-item .nav-badge,
+.nav-group-label {
+  transition: all var(--transition-normal);
+}
+
+/* ── 响应式：小屏幕侧边栏收起 ──────────────────────────────── */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 56px;
+  }
+  .sidebar-logo .logo-text,
+  .sidebar-logo .logo-version,
+  .nav-item .nav-label,
+  .nav-item .nav-badge,
+  .nav-group-label,
+  .sidebar-footer .nav-item .nav-label {
+    display: none;
+  }
+  .sidebar-logo {
+    justify-content: center;
+    padding: 0;
+  }
+  .nav-item {
+    justify-content: center;
+    padding: 10px;
+  }
+  .nav-item .nav-icon {
+    width: auto;
+  }
+  .content {
+    padding: var(--space-md);
+  }
+  .header {
+    padding: 0 var(--space-md);
+  }
+}

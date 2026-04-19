@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>基金估值 · 投研工作台</title>
+  <link rel="stylesheet" href="shared/base.css">
+  <link rel="stylesheet" href="shared/nav.css">
+  <style>
+    /* ── 页面布局 ── */
+    .page-body {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .content-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    /* ── 汇总卡片区 ── */
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-md);
+      margin-bottom: var(--space-lg);
+    }
+    .summary-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-md) var(--space-lg);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: border-color var(--transition-fast);
+    }
+    .summary-card:hover {
+      border-color: var(--border-default);
+    }
+    .summary-card .sc-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .summary-card .sc-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+    .summary-card .sc-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .summary-card.card-up   { border-left: 3px solid var(--success); }
+    .summary-card.card-down { border-left: 3px solid var(--danger);  }
+    .summary-card.card-flat { border-left: 3px solid var(--primary); }
+    .summary-card.card-total{ border-left: 3px solid var(--primary-light); }
+
+    /* ── 工具栏 ── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+    }
+    .refresh-status {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+    }
+
+    /* ── 表格容器 ── */
+    .fund-table-wrap {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .fund-table-wrap table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .fund-table-wrap thead th {
+      padding: 10px 16px;
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-align: left;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border-subtle);
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      transition: color var(--transition-fast);
+    }
+    .fund-table-wrap thead th:hover {
+      color: var(--text-primary);
+    }
+    .fund-table-wrap thead th.sort-asc::after  { content: ' ↑'; color: var(--primary-light); }
+    .fund-table-wrap thead th.sort-desc::after { content: ' ↓'; color: var(--primary-light); }
+
+    .fund-table-wrap tbody td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 13px;
+      color: var(--text-primary);
+      vertical-align: middle;
+    }
+    .fund-table-wrap tbody tr:last-child td {
+      border-bottom: none;
+    }
+    .fund-table-wrap tbody tr:hover td {
+      background: var(--bg-hover);
+    }
+
+    /* 代码列 */
+    .fund-code {
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: 13px;
+      color: var(--primary-light);
+      font-weight: 600;
+    }
+    /* 名称列 */
+    .fund-name {
+      max-width: 200px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* 净值列 */
+    .fund-nav {
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    /* 涨跌幅 */
+    .change-cell {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+    }
+    .change-cell.up   {
+      color: var(--success);
+      background: var(--success-bg);
+    }
+    .change-cell.down {
+      color: var(--danger);
+      background: var(--danger-bg);
+    }
+    .change-cell.flat {
+      color: var(--text-secondary);
+      background: var(--bg-elevated);
+    }
+    /* 估值时间 */
+    .gz-time {
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    /* 加载中动画行 */
+    .loading-row td {
+      padding: 10px 16px !important;
+    }
+    /* 操作列 */
+    .action-col {
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    /* ── 刷新进度条 ── */
+    .refresh-progress-wrap {
+      height: 3px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-full);
+      margin-bottom: var(--space-md);
+      overflow: hidden;
+      display: none;
+    }
+    .refresh-progress-wrap.active {
+      display: block;
+    }
+    .refresh-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--primary-light));
+      border-radius: var(--radius-full);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    /* ── 添加基金弹窗 ── */
+    .fund-preview-box {
+      margin-top: var(--space-md);
+      padding: var(--space-md);
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      display: none;
+    }
+    .fund-preview-box.active {
+      display: block;
+    }
+    .fund-preview-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+    }
+    .fund-preview-row .fp-key {
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+    .fund-preview-row .fp-val {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* 验证状态图标 */
+    .verify-icon {
+      font-size: 14px;
+      margin-left: var(--space-xs);
+    }
+
+    /* ── 空状态 ── */
+    .fund-empty {
+      padding: var(--space-xl) var(--space-md);
+    }
+  </style>
+</head>
+<body>
+<div class="page-body">
+
+  <!-- 侧边栏占位 -->
+  <div id="nav-placeholder"></div>
+
+  <!-- 主内容区 -->
+  <div class="content-area">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-title">
+        <span class="page-icon">📈</span>
+        <h1>基金实时估值</h1>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-ghost btn-sm" id="btn-refresh"
+                onclick="refreshAll()">
+          🔄 刷新估值
+        </button>
+        <button class="btn btn-primary btn-sm"
+                onclick="openAddModal()">
+          ＋ 添加基金
+        </button>
+      </div>
+    </header>
+
+    <!-- 内容 -->
+    <div class="content" id="main-content">
+
+      <!-- 汇总卡片 -->
+      <div class="summary-cards">
+        <div class="summary-card card-total">
+          <div class="sc-label">关注总数</div>
+          <div class="sc-value" id="sc-total">—</div>
+          <div class="sc-sub">只基金</div>
+        </div>
+        <div class="summary-card card-up">
+          <div class="sc-label">今日上涨</div>
+          <div class="sc-value text-up" id="sc-up">—</div>
+          <div class="sc-sub">只</div>
+        </div>
+        <div class="summary-card card-down">
+          <div class="sc-label">今日下跌</div>
+          <div class="sc-value text-down" id="sc-down">—</div>
+          <div class="sc-sub">只</div>
+        </div>
+        <div class="summary-card card-flat">
+          <div class="sc-label">平均涨跌幅</div>
+          <div class="sc-value" id="sc-avg">—</div>
+          <div class="sc-sub">估算值</div>
+        </div>
+      </div>
+
+      <!-- 刷新进度条 -->
+      <div class="refresh-progress-wrap" id="refresh-progress-wrap">
+        <div class="refresh-progress-bar" id="refresh-progress-bar"></div>
+      </div>
+
+      <!-- 工具栏 -->
+      <div class="toolbar">
+        <input class="input" id="search-input" style="max-width:200px"
+               placeholder="🔍 搜索代码或名称…"
+               oninput="renderTable()">
+        <select class="select" id="sort-col" style="max-width:130px"
+                onchange="renderTable()">
+          <option value="">默认排序</option>
+          <option value="change">按涨跌幅</option>
+          <option value="nav">按估算净值</option>
+          <option value="code">按代码</option>
+        </select>
+        <span class="refresh-status" id="refresh-status">
+          <span id="last-refresh-time">尚未刷新</span>
+        </span>
+      </div>
+
+      <!-- 基金表格 -->
+      <div class="fund-table-wrap" id="fund-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>基金代码</th>
+              <th>基金名称</th>
+              <th>估算净值</th>
+              <th>涨跌幅</th>
+              <th>估值时间</th>
+              <th style="text-align:right">操作</th>
+            </tr>
+          </thead>
+          <tbody id="fund-tbody">
+            <tr>
+              <td colspan="6">
+                <div class="empty-state fund-empty">
+                  <div class="empty-icon">📊</div>
+                  <p>暂无关注基金，点击右上角「添加基金」</p>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     添加基金弹窗
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <h3>➕ 添加关注基金</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeAddModal()">✕</button>
+    </div>
+    <!-- 添加基金弹窗 modal-body 内容整体替换 -->
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">基金代码（6位数字）</label>
+        <input class="input" id="fund-code-input"
+               placeholder="输入6位代码自动查询，如 000001"
+               maxlength="6"
+               oninput="onFundCodeInput()">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+          输入完整 6 位代码后自动查询
+        </div>
+      </div>
+
+      <!-- 预览结果 -->
+      <div class="fund-preview-box" id="fund-preview-box">
+        <div class="fund-preview-row">
+          <span class="fp-key">基金名称</span>
+          <span class="fp-val" id="fp-name">—</span>
+        </div>
+        <div class="fund-preview-row">
+          <span class="fp-key">估算净值</span>
+          <span class="fp-val" id="fp-nav">—</span>
+        </div>
+        <div class="fund-preview-row">
+          <span class="fp-key">涨跌幅</span>
+          <span class="fp-val" id="fp-change">—</span>
+        </div>
+        <div class="fund-preview-row">
+          <span class="fp-key">估值时间</span>
+          <span class="fp-val" id="fp-time">—</span>
+        </div>
+      </div>
+
+  
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeAddModal()">取消</button>
+      <button class="btn btn-primary" id="add-confirm-btn"
+              onclick="confirmAddFund()" disabled>
+        ＋ 添加
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     删除确认弹窗
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal" style="max-width:340px">
+    <div class="modal-header">
+      <h3>🗑️ 移除基金</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeDeleteModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:14px;color:var(--text-secondary)">
+        确定移除关注
+        <strong id="delete-fund-name" style="color:var(--text-primary)"></strong>？
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDeleteModal()">取消</button>
+      <button class="btn btn-danger" onclick="confirmRemoveFund()">确认移除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     依赖 & 逻辑
+══════════════════════════════════════════ -->
+<script src="shared/config.js"></script>
+<script src="shared/nav.js"></script>
+<script>
+/* ══════════════════════════════════════════
+   状态
+══════════════════════════════════════════ */
+let watchList    = [];   // [{ code, name, gsz, gszzl, gztime }]
+let isRefreshing = false;
+let previewData  = null; // 添加弹窗预览数据
+let deletingCode = null;
+let sortCol      = '';
+let sortDir      = 1;    // 1=升序 -1=降序
+
+/* ══════════════════════════════════════════
+   初始化
+══════════════════════════════════════════ */
+function init() {
+  loadFromStorage();
+  renderTable();
+  updateSummary();
+  // 有数据时自动刷新一次
+  if (watchList.length > 0) refreshAll();
+}
+
+/* ══════════════════════════════════════════
+   localStorage 读写
+══════════════════════════════════════════ */
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(LS_KEYS.watchFunds);
+    watchList = raw ? JSON.parse(raw) : [];
+  } catch { watchList = []; }
+}
+function saveToStorage() {
+  localStorage.setItem(LS_KEYS.watchFunds, JSON.stringify(watchList));
+}
+
+/* ══════════════════════════════════════════
+   JSONP 串行获取估值
+══════════════════════════════════════════ */
+function fetchFundValuation(code) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    const timer  = setTimeout(() => {
+      window.jsonpgz = null;
+      if (document.body.contains(script)) document.body.removeChild(script);
+      reject(new Error('超时'));
+    }, 8000);
+
+    window.jsonpgz = (data) => {
+      clearTimeout(timer);
+      window.jsonpgz = null;
+      if (document.body.contains(script)) document.body.removeChild(script);
+      resolve(data);
+    };
+
+    script.onerror = () => {
+      clearTimeout(timer);
+      window.jsonpgz = null;
+      reject(new Error('请求失败'));
+    };
+
+    script.src = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
+    document.body.appendChild(script);
+  });
+}
+
+/* ══════════════════════════════════════════
+   刷新全部（串行）
+══════════════════════════════════════════ */
+async function refreshAll() {
+  if (isRefreshing || watchList.length === 0) return;
+  isRefreshing = true;
+
+  const btn      = document.getElementById('btn-refresh');
+  const wrap     = document.getElementById('refresh-progress-wrap');
+  const bar      = document.getElementById('refresh-progress-bar');
+  btn.disabled   = true;
+  btn.innerHTML  = '<span class="loading-spinner"></span> 刷新中…';
+  wrap.classList.add('active');
+  bar.style.width = '0%';
+
+  const total = watchList.length;
+
+  for (let i = 0; i < total; i++) {
+    const item = watchList[i];
+    // 更新进度条
+    bar.style.width = `${Math.round((i / total) * 100)}%`;
+    // 表格中对应行显示 loading
+    setRowLoading(item.code, true);
+
+    try {
+      const data = await fetchFundValuation(item.code);
+      // 合并数据
+      item.name   = data.name  || item.name  || item.code;
+      item.gsz    = data.gsz   || '—';
+      item.gszzl  = data.gszzl !== undefined ? String(data.gszzl) : '—';
+      item.gztime = data.gztime || '—';
+    } catch (e) {
+      item.gsz    = item.gsz    || '—';
+      item.gszzl  = item.gszzl  || '—';
+      item.gztime = item.gztime || '—';
+    }
+
+    setRowLoading(item.code, false);
+    // 实时更新该行
+    updateRow(item);
+  }
+
+  bar.style.width = '100%';
+  saveToStorage();
+  updateSummary();
+
+  // 记录刷新时间
+  const now = new Date();
+  document.getElementById('last-refresh-time').textContent =
+    `上次刷新：${now.getHours().toString().padStart(2,'0')}:` +
+    `${now.getMinutes().toString().padStart(2,'0')}:` +
+    `${now.getSeconds().toString().padStart(2,'0')}`;
+
+  setTimeout(() => {
+    wrap.classList.remove('active');
+    bar.style.width = '0%';
+  }, 600);
+
+  btn.disabled  = false;
+  btn.innerHTML = '🔄 刷新估值';
+  isRefreshing  = false;
+}
+
+/* ══════════════════════════════════════════
+   渲染表格
+══════════════════════════════════════════ */
+function renderTable() {
+  const kw  = (document.getElementById('search-input').value || '').trim().toLowerCase();
+  const col = document.getElementById('sort-col').value;
+
+  let list = watchList.filter(item =>
+    !kw ||
+    item.code.includes(kw) ||
+    (item.name || '').toLowerCase().includes(kw)
+  );
+
+  // 排序
+  if (col === 'change') {
+    list = [...list].sort((a, b) =>
+      (parseFloat(b.gszzl) || 0) - (parseFloat(a.gszzl) || 0));
+  } else if (col === 'nav') {
+    list = [...list].sort((a, b) =>
+      (parseFloat(b.gsz) || 0) - (parseFloat(a.gsz) || 0));
+  } else if (col === 'code') {
+    list = [...list].sort((a, b) => a.code.localeCompare(b.code));
+  }
+
+  const tbody = document.getElementById('fund-tbody');
+
+  if (list.length === 0) {
+    tbody.innerHTML = `
+      <tr><td colspan="6">
+        <div class="empty-state fund-empty">
+          <div class="empty-icon">📊</div>
+          <p>${kw ? '没有匹配的基金' : '暂无关注基金，点击右上角「添加基金」'}</p>
+        </div>
+      </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map(item => buildRow(item)).join('');
+}
+
+/* ── 构建单行 HTML ── */
+function buildRow(item) {
+  const chg    = parseFloat(item.gszzl);
+  const isUp   = !isNaN(chg) && chg > 0;
+  const isDown = !isNaN(chg) && chg < 0;
+  const cls = isUp ? 'down' : isDown ? 'up' : 'flat';
+  const arrow  = isUp ? '▲' : isDown ? '▼' : '—';
+  const chgStr = isNaN(chg) ? (item.gszzl || '—') :
+                 `${arrow} ${Math.abs(chg).toFixed(2)}%`;
+
+  return `
+    <tr id="row-${item.code}">
+      <td><span class="fund-code">${item.code}</span></td>
+      <td><span class="fund-name" title="${escHtml(item.name||'')}">${escHtml(item.name || '加载中…')}</span></td>
+      <td><span class="fund-nav">${item.gsz || '—'}</span></td>
+      <td><span class="change-cell ${cls}">${chgStr}</span></td>
+      <td><span class="gz-time">${item.gztime || '—'}</span></td>
+      <td class="action-col">
+        <button class="btn btn-ghost btn-sm"
+                onclick="refreshSingle('${item.code}')"
+                title="单独刷新">↻</button>
+        <button class="btn btn-danger btn-sm"
+                onclick="openDeleteModal('${item.code}')"
+                title="移除">✕</button>
+      </td>
+    </tr>`;
+}
+
+/* ── 行 Loading 占位 ── */
+function setRowLoading(code, loading) {
+  const tr = document.getElementById(`row-${code}`);
+  if (!tr) return;
+  if (loading) {
+    tr.classList.add('loading-row');
+    const tds = tr.querySelectorAll('td');
+    if (tds[2]) tds[2].innerHTML = '<span class="loading-spinner"></span>';
+    if (tds[3]) tds[3].innerHTML = '<span class="loading-spinner"></span>';
+    if (tds[4]) tds[4].innerHTML = '<span style="color:var(--text-muted);font-size:12px">更新中…</span>';
+  } else {
+    tr.classList.remove('loading-row');
+  }
+}
+
+/* ── 实时更新单行 ── */
+function updateRow(item) {
+  const tr = document.getElementById(`row-${item.code}`);
+  if (!tr) { renderTable(); return; }
+  tr.outerHTML = buildRow(item);
+}
+
+/* ══════════════════════════════════════════
+   刷新单只
+══════════════════════════════════════════ */
+async function refreshSingle(code) {
+  if (isRefreshing) { showToast('请等待全量刷新完成', 'info'); return; }
+  const item = watchList.find(i => i.code === code);
+  if (!item) return;
+  setRowLoading(code, true);
+  try {
+    const data  = await fetchFundValuation(code);
+    item.name   = data.name   || item.name || code;
+    item.gsz    = data.gsz    || '—';
+    item.gszzl  = data.gszzl !== undefined ? String(data.gszzl) : '—';
+    item.gztime = data.gztime || '—';
+    saveToStorage();
+    updateRow(item);
+    updateSummary();
+    showToast(`${item.name} 已更新`, 'success');
+  } catch (e) {
+    setRowLoading(code, false);
+    updateRow(item);
+    showToast(`${code} 刷新失败：${e.message}`, 'error');
+  }
+}
+
+/* ══════════════════════════════════════════
+   汇总卡片更新
+══════════════════════════════════════════ */
+function updateSummary() {
+  const total  = watchList.length;
+  let upCount  = 0, downCount = 0, sumChg = 0, validCount = 0;
+
+  watchList.forEach(item => {
+    const chg = parseFloat(item.gszzl);
+    if (!isNaN(chg)) {
+      if (chg > 0) upCount++;
+      if (chg < 0) downCount++;
+      sumChg += chg;
+      validCount++;
+    }
+  });
+
+  const avg = validCount > 0 ? (sumChg / validCount) : NaN;
+
+  document.getElementById('sc-total').textContent = total;
+  document.getElementById('sc-up').textContent    = upCount;
+  document.getElementById('sc-down').textContent  = downCount;
+
+  const avgEl = document.getElementById('sc-avg');
+  if (isNaN(avg)) {
+    avgEl.textContent  = '—';
+    avgEl.className    = 'sc-value';
+  } else {
+    const sign = avg >= 0 ? '+' : '';
+    avgEl.textContent = `${sign}${avg.toFixed(2)}%`;
+    avgEl.className   = `sc-value ${avg > 0 ? 'text-up' : avg < 0 ? 'text-down' : 'text-flat'}`;
+  }
+}
+
+/* ══════════════════════════════════════════
+   添加基金弹窗
+══════════════════════════════════════════ */
+function openAddModal() {
+  previewData = null;
+  document.getElementById('fund-code-input').value = '';
+  document.getElementById('fund-preview-box').classList.remove('active');
+  document.getElementById('add-confirm-btn').disabled = true;
+  document.getElementById('add-modal').classList.add('open');
+  setTimeout(() => document.getElementById('fund-code-input').focus(), 80);
+}
+function closeAddModal() {
+  document.getElementById('add-modal').classList.remove('open');
+}
+
+/* ── 输入监听：6位后自动触发预览 ── */
+var fundPreviewTimer = null;
+
+function onFundCodeInput() {
+  var code = document.getElementById('fund-code-input').value.trim();
+
+  // 重置状态
+  previewData = null;
+  document.getElementById('add-confirm-btn').disabled = true;
+  document.getElementById('fund-preview-box').classList.remove('active');
+
+  // 不足6位直接返回
+  if (!/^\d{6}$/.test(code)) return;
+
+  // 已在列表中
+  if (watchList.find(function(i) { return i.code === code; })) {
+    showToast('该基金已在关注列表中', 'info');
+    return;
+  }
+
+  // 防抖 300ms
+  clearTimeout(fundPreviewTimer);
+  fundPreviewTimer = setTimeout(function() {
+    previewFund(code);
+  }, 300);
+}
+
+/* ── 自动预览 ── */
+async function previewFund(code) {
+  var box    = document.getElementById('fund-preview-box');
+  var nameEl = document.getElementById('fp-name');
+  var navEl  = document.getElementById('fp-nav');
+  var chgEl  = document.getElementById('fp-change');
+  var timeEl = document.getElementById('fp-time');
+
+  // 显示查询中状态
+  box.classList.add('active');
+  nameEl.textContent = '查询中…';
+  navEl.textContent  = '—';
+  chgEl.textContent  = '—';
+  timeEl.textContent = '—';
+  chgEl.style.color  = '';
+
+  try {
+    var data = await fetchFundValuation(code);
+    if (!data || !data.name) throw new Error('未找到该基金');
+
+    previewData = { code: code, ...data };
+
+    var chg    = parseFloat(data.gszzl);
+    var isUp   = !isNaN(chg) && chg > 0;
+    var isDown = !isNaN(chg) && chg < 0;
+    var arrow  = isUp ? '▲' : isDown ? '▼' : '—';
+    var chgStr = isNaN(chg)
+      ? (data.gszzl || '—')
+      : arrow + ' ' + Math.abs(chg).toFixed(2) + '%';
+
+    nameEl.textContent = data.name  || '—';
+    navEl.textContent  = data.gsz   || '—';
+    timeEl.textContent = data.gztime|| '—';
+    chgEl.textContent  = chgStr;
+
+    // 红涨绿跌
+    chgEl.style.color = isUp
+      ? '#f87171'                     // 红色=上涨
+      : isDown
+      ? '#34d399'                     // 绿色=下跌
+      : 'var(--text-secondary)';
+
+    document.getElementById('add-confirm-btn').disabled = false;
+
+  } catch(e) {
+    nameEl.textContent = '⚠ ' + e.message;
+    navEl.textContent  = '—';
+    chgEl.textContent  = '—';
+    timeEl.textContent = '—';
+    previewData = null;
+    document.getElementById('add-confirm-btn').disabled = true;
+  }
+}
+
+/* ── 确认添加 ── */
+function confirmAddFund() {
+  if (!previewData) return;
+  var code   = previewData.code;
+  var name   = previewData.name   || code;
+  var gsz    = previewData.gsz    || '—';
+  var gszzl  = previewData.gszzl  !== undefined ? String(previewData.gszzl) : '—';
+  var gztime = previewData.gztime || '—';
+
+  watchList.push({ code: code, name: name, gsz: gsz, gszzl: gszzl, gztime: gztime });
+  saveToStorage();
+  renderTable();
+  updateSummary();
+  closeAddModal();
+  showToast('已添加 ' + name, 'success');
+}
+/* ══════════════════════════════════════════
+   删除基金
+══════════════════════════════════════════ */
+function openDeleteModal(code) {
+  deletingCode = code;
+  const item   = watchList.find(i => i.code === code);
+  document.getElementById('delete-fund-name').textContent =
+    item ? `${item.name}（${code}）` : code;
+  document.getElementById('delete-modal').classList.add('open');
+}
+function closeDeleteModal() {
+  deletingCode = null;
+  document.getElementById('delete-modal').classList.remove('open');
+}
+function confirmRemoveFund() {
+  if (!deletingCode) return;
+  const item  = watchList.find(i => i.code === deletingCode);
+  watchList   = watchList.filter(i => i.code !== deletingCode);
+  saveToStorage();
+  renderTable();
+  updateSummary();
+  closeDeleteModal();
+  showToast(`已移除 ${item?.name || deletingCode}`, 'success');
+}
+
+/* ══════════════════════════════════════════
+   工具函数
+══════════════════════════════════════════ */
+function escHtml(str) {
+  return String(str || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── 点击遮罩关闭弹窗 ── */
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => {
+    if (e.target === el) el.classList.remove('open');
+  });
+});
+
+/* ── 启动 ── */
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

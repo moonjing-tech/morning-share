@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>内容详情 · 投研工作台</title>
+  <link rel="stylesheet" href="shared/base.css">
+  <link rel="stylesheet" href="shared/nav.css">
+  <style>
+    /* ── 页面布局 ── */
+    .page-body {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .content-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    /* ── 详情主体：左预览 + 右信息 ── */
+    .detail-layout {
+      display: flex;
+      gap: var(--space-lg);
+      height: 100%;
+      min-height: 0;
+    }
+
+    /* ── 左侧预览区 ── */
+    .preview-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .preview-toolbar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-elevated);
+      flex-shrink: 0;
+    }
+    .preview-toolbar .preview-title {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .preview-body {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+    /* PDF / iframe 预览 */
+    .preview-body iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #fff;
+    }
+    /* PDF.js canvas 渲染区 */
+    .pdf-canvas-wrap {
+      width: 100%;
+      height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-md);
+      background: #404040;
+    }
+    .pdf-canvas-wrap canvas {
+      max-width: 100%;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    /* Word / 链接 预览占位 */
+    .preview-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-md);
+      color: var(--text-muted);
+    }
+    .preview-placeholder .ph-icon {
+      font-size: 52px;
+      opacity: 0.4;
+    }
+    .preview-placeholder p {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    /* PDF 翻页控制 */
+    .pdf-page-ctrl {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .pdf-page-ctrl input {
+      width: 44px;
+      text-align: center;
+      padding: 3px 6px;
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 12px;
+      outline: none;
+    }
+
+    /* ── 右侧信息区 ── */
+    .info-pane {
+      width: 300px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+      overflow-y: auto;
+    }
+
+    .info-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+    }
+    .info-card-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: var(--space-sm);
+      padding-bottom: var(--space-xs);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    /* 基本信息行 */
+    .meta-row {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-sm);
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 13px;
+    }
+    .meta-row:last-child { border-bottom: none; }
+    .meta-key {
+      color: var(--text-muted);
+      flex-shrink: 0;
+      width: 56px;
+      font-size: 12px;
+      padding-top: 1px;
+    }
+    .meta-val {
+      color: var(--text-primary);
+      flex: 1;
+      word-break: break-all;
+      line-height: 1.5;
+    }
+    .meta-val a {
+      color: var(--primary-light);
+      word-break: break-all;
+    }
+    .meta-val a:hover { text-decoration: underline; }
+
+    /* 摘要编辑区 */
+    .summary-edit {
+      width: 100%;
+      min-height: 120px;
+      padding: var(--space-sm) var(--space-md);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 13px;
+      font-family: inherit;
+      line-height: 1.7;
+      resize: vertical;
+      outline: none;
+      transition: border-color var(--transition-fast);
+    }
+    .summary-edit:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(79,142,247,0.15);
+    }
+    .summary-actions {
+      display: flex;
+      gap: var(--space-sm);
+      margin-top: var(--space-sm);
+    }
+
+    /* AI 流式输出区 */
+    .ai-stream-box {
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: var(--space-sm) var(--space-md);
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      min-height: 60px;
+      white-space: pre-wrap;
+      display: none;
+    }
+    .ai-stream-box.active { display: block; }
+
+    /* 操作按钮组 */
+    .action-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    /* 骨架屏 */
+    .detail-skeleton {
+      display: flex;
+      gap: var(--space-lg);
+      height: 100%;
+    }
+    .detail-skeleton .sk-left {
+      flex: 1;
+      border-radius: var(--radius-md);
+    }
+    .detail-skeleton .sk-right {
+      width: 300px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+  </style>
+</head>
+<body>
+<div class="page-body">
+
+  <!-- 侧边栏占位 -->
+  <div id="nav-placeholder"></div>
+
+  <!-- 主内容区 -->
+  <div class="content-area">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-title">
+        <!-- 面包屑 -->
+        <div class="header-breadcrumb">
+          <a class="crumb-link" href="index.html">🚀 晨会分享</a>
+          <span class="crumb-sep">›</span>
+          <span class="crumb-current" id="crumb-title">加载中…</span>
+        </div>
+      </div>
+      <div class="header-actions" id="header-actions" style="display:none">
+        <button class="btn btn-ghost btn-sm" onclick="openNewTab()">↗ 新窗口打开</button>
+        <button class="btn btn-outline btn-sm" onclick="reGenSummary()">✨ 重新生成摘要</button>
+        <button class="btn btn-danger btn-sm" onclick="openDeleteModal()">🗑 删除</button>
+      </div>
+    </header>
+
+    <!-- 内容 -->
+    <div class="content" id="main-content">
+
+      <!-- 骨架屏（加载中） -->
+      <div class="detail-skeleton" id="skeleton">
+        <div class="skeleton sk-left"></div>
+        <div class="sk-right">
+          <div class="skeleton" style="height:40px;border-radius:var(--radius-md)"></div>
+          <div class="skeleton" style="height:120px;border-radius:var(--radius-md)"></div>
+          <div class="skeleton" style="height:80px;border-radius:var(--radius-md)"></div>
+        </div>
+      </div>
+
+      <!-- 详情主体（加载后显示） -->
+      <div class="detail-layout" id="detail-body" style="display:none">
+
+        <!-- 左侧：预览区 -->
+        <div class="preview-pane">
+          <div class="preview-toolbar">
+            <span class="preview-title" id="preview-label">文件预览</span>
+            <!-- PDF 翻页控制（仅 PDF 显示） -->
+            <div class="pdf-page-ctrl" id="pdf-ctrl" style="display:none">
+              <button class="btn btn-ghost btn-sm" onclick="pdfPrevPage()">‹</button>
+              <input type="number" id="pdf-page-input" min="1" value="1"
+                     onchange="pdfGoPage(this.value)">
+              <span id="pdf-total-pages">/ 1</span>
+              <button class="btn btn-ghost btn-sm" onclick="pdfNextPage()">›</button>
+            </div>
+          </div>
+          <div class="preview-body" id="preview-body">
+            <!-- 内容由 JS 动态注入 -->
+          </div>
+        </div>
+
+        <!-- 右侧：信息区 -->
+        <div class="info-pane">
+
+          <!-- 基本信息 -->
+          <div class="info-card">
+            <div class="info-card-title">基本信息</div>
+            <div id="meta-rows"><!-- JS 注入 --></div>
+          </div>
+
+          <!-- 摘要 -->
+          <div class="info-card">
+            <div class="info-card-title">摘要</div>
+            <!-- AI 流式输出 -->
+            <div class="ai-stream-box" id="ai-stream-box"></div>
+            <!-- 编辑区 -->
+            <textarea class="summary-edit" id="summary-edit"
+                      placeholder="暂无摘要，点击「重新生成摘要」或手动输入…"></textarea>
+            <div class="summary-actions">
+              <button class="btn btn-primary btn-sm w-full" onclick="saveSummary()">💾 保存摘要</button>
+            </div>
+          </div>
+
+          <!-- 操作 -->
+          <div class="info-card">
+            <div class="info-card-title">操作</div>
+            <div class="action-group">
+              <button class="btn btn-outline w-full" onclick="openNewTab()">↗ 新窗口打开原文件</button>
+              <button class="btn btn-outline w-full" onclick="reGenSummary()">✨ 重新生成摘要</button>
+              <button class="btn btn-danger w-full" onclick="openDeleteModal()">🗑 删除此内容</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 错误状态 -->
+      <div class="empty-state" id="error-state" style="display:none">
+        <div class="empty-icon">⚠️</div>
+        <p id="error-msg">加载失败</p>
+        <a href="index.html" class="btn btn-outline" style="margin-top:var(--space-md)">← 返回列表</a>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     删除确认弹窗
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-header">
+      <h3>🗑️ 确认删除</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeDeleteModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:14px;color:var(--text-secondary)">
+        确定要删除
+        <strong id="delete-name" style="color:var(--text-primary)"></strong> 吗？<br>
+        <span style="font-size:12px;color:var(--text-muted)">
+          此操作不可撤销，文件将从云端移除。
+        </span>
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDeleteModal()">取消</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     外部依赖
+══════════════════════════════════════════ -->
+<script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<script src="shared/config.js"></script>
+<script src="shared/nav.js"></script>
+
+<!-- ══════════════════════════════════════════
+     页面业务逻辑
+══════════════════════════════════════════ -->
+<script>
+/* ── 状态 ── */
+let currentItem  = null;
+let pdfDoc       = null;
+let pdfPageNum   = 1;
+let pdfRendering = false;
+
+/* ── 工具：Supabase Headers ── */
+function sbHeaders(extra = {}) {
+  return {
+    'apikey': SUPABASE_KEY,
+    'Authorization': `Bearer ${SUPABASE_KEY}`,
+    'Content-Type': 'application/json',
+    ...extra
+  };
+}
+
+/* ── 初始化：从 URL 读取 id ── */
+async function init() {
+  const params = new URLSearchParams(location.search);
+  const id = params.get('id');
+  if (!id) { showError('缺少内容 ID，请从列表页进入'); return; }
+  await loadItem(id);
+}
+
+/* ── 加载详情数据 ── */
+async function loadItem(id) {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${id}&select=*`,
+      { headers: sbHeaders() }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    if (!data.length) throw new Error('内容不存在或已被删除');
+    currentItem = data[0];
+    renderDetail();
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+/* ── 渲染详情 ── */
+function renderDetail() {
+  const item = currentItem;
+
+  // 面包屑 & Header
+  document.title = `${item.title || '详情'} · 投研工作台`;
+  document.getElementById('crumb-title').textContent = item.title || '未命名';
+  document.getElementById('header-actions').style.display = 'flex';
+
+  // 基本信息
+  const ext  = (item.type || '').toLowerCase();
+  const rows = [
+    { key: '标题', val: escHtml(item.title || '未命名') },
+    { key: '类型', val: `<span class="badge badge-info">${ext.toUpperCase()}</span>` },
+    { key: '时间', val: formatDate(item.created_at) },
+    {
+      key: '链接',
+      val: item.file_url
+        ? `<a href="${escHtml(item.file_url)}" target="_blank" title="${escHtml(item.file_url)}">
+             ${item.type === 'link' ? escHtml(item.file_url) : '点击打开文件'}
+           </a>`
+        : '—'
+    },
+  ];
+  document.getElementById('meta-rows').innerHTML = rows.map(r => `
+    <div class="meta-row">
+      <span class="meta-key">${r.key}</span>
+      <span class="meta-val">${r.val}</span>
+    </div>
+  `).join('');
+
+  // 摘要
+  document.getElementById('summary-edit').value = item.summary || '';
+
+  // 预览区
+  renderPreview(item);
+
+  // 切换显示
+  document.getElementById('skeleton').style.display    = 'none';
+  document.getElementById('detail-body').style.display = 'flex';
+}
+
+/* ── 渲染预览区 ── */
+function renderPreview(item) {
+  const body  = document.getElementById('preview-body');
+  const label = document.getElementById('preview-label');
+  const ext   = (item.type || '').toLowerCase();
+
+  label.textContent = item.title || '文件预览';
+
+  if (ext === 'pdf') {
+    // PDF.js 渲染
+    document.getElementById('pdf-ctrl').style.display = 'flex';
+    body.innerHTML = '<div class="pdf-canvas-wrap" id="pdf-canvas-wrap"></div>';
+    loadPDF(item.file_url);
+
+  } else if (['doc','docx'].includes(ext)) {
+    // Word：先用 mammoth 转 HTML 再 iframe 渲染
+    body.innerHTML = `
+      <div class="preview-placeholder">
+        <div class="ph-icon">📝</div>
+        <p>Word 文件预览加载中…</p>
+      </div>`;
+    loadWordPreview(item.file_url, body);
+
+  } else if (ext === 'link') {
+    // 链接：尝试 iframe 嵌入
+    body.innerHTML = `
+      <iframe src="${escHtml(item.file_url)}"
+              sandbox="allow-scripts allow-same-origin allow-popups"
+              title="链接预览">
+      </iframe>`;
+
+  } else {
+    // PPT 等暂不支持预览
+    body.innerHTML = `
+      <div class="preview-placeholder">
+        <div class="ph-icon">${fileTypeIcon(ext)}</div>
+        <p>${ext.toUpperCase()} 暂不支持在线预览</p>
+        <a href="${escHtml(item.file_url)}" target="_blank"
+           class="btn btn-outline" style="margin-top:var(--space-md)">
+          ↗ 下载 / 新窗口打开
+        </a>
+      </div>`;
+  }
+}
+
+/* ── PDF.js 渲染 ── */
+async function loadPDF(url) {
+  try {
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+    pdfDoc     = await pdfjsLib.getDocument(url).promise;
+    pdfPageNum = 1;
+
+    const totalEl = document.getElementById('pdf-total-pages');
+    if (totalEl) totalEl.textContent = `/ ${pdfDoc.numPages}`;
+
+    await renderPDFPage(pdfPageNum);
+  } catch (e) {
+    document.getElementById('preview-body').innerHTML = `
+      <div class="preview-placeholder">
+        <div class="ph-icon">⚠️</div>
+        <p>PDF 加载失败：${e.message}</p>
+        <a href="${currentItem?.file_url}" target="_blank"
+           class="btn btn-outline" style="margin-top:var(--space-md)">
+          ↗ 直接打开
+        </a>
+      </div>`;
+  }
+}
+
+async function renderPDFPage(num) {
+  if (!pdfDoc || pdfRendering) return;
+  pdfRendering = true;
+
+  const wrap = document.getElementById('pdf-canvas-wrap');
+  if (!wrap) return;
+
+  // 清除旧内容
+  wrap.innerHTML = '';
+
+  // 渲染当前页及前后共 3 页（提升体验）
+  const start = Math.max(1, num);
+  const end   = Math.min(pdfDoc.numPages, num + 2);
+
+  for (let i = start; i <= end; i++) {
+    const page    = await pdfDoc.getPage(i);
+    const vp      = page.getViewport({ scale: 1.5 });
+    const canvas  = document.createElement('canvas');
+    canvas.width  = vp.width;
+    canvas.height = vp.height;
+    wrap.appendChild(canvas);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  }
+
+  // 更新页码输入
+  const input = document.getElementById('pdf-page-input');
+  if (input) input.value = num;
+
+  pdfRendering = false;
+}
+
+function pdfPrevPage() {
+  if (!pdfDoc || pdfPageNum <= 1) return;
+  pdfPageNum--;
+  renderPDFPage(pdfPageNum);
+}
+function pdfNextPage() {
+  if (!pdfDoc || pdfPageNum >= pdfDoc.numPages) return;
+  pdfPageNum++;
+  renderPDFPage(pdfPageNum);
+}
+function pdfGoPage(val) {
+  const n = parseInt(val);
+  if (!pdfDoc || isNaN(n)) return;
+  pdfPageNum = Math.max(1, Math.min(pdfDoc.numPages, n));
+  renderPDFPage(pdfPageNum);
+}
+
+/* ── Word 预览（mammoth → HTML → srcdoc iframe）── */
+async function loadWordPreview(url, container) {
+  try {
+    const response = await fetch(url);
+    const buffer   = await response.arrayBuffer();
+    const result   = await mammoth.convertToHtml({ arrayBuffer: buffer });
+    container.innerHTML = `
+      <iframe srcdoc="${escAttr(wrapWordHtml(result.value))}"
+              style="width:100%;height:100%;border:none;background:#fff">
+      </iframe>`;
+  } catch (e) {
+    container.innerHTML = `
+      <div class="preview-placeholder">
+        <div class="ph-icon">📝</div>
+        <p>Word 预览失败：${e.message}</p>
+        <a href="${escHtml(url)}" target="_blank"
+           class="btn btn-outline" style="margin-top:var(--space-md)">↗ 下载文件</a>
+      </div>`;
+  }
+}
+
+function wrapWordHtml(body) {
+  return `<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <style>
+      body{font-family:'Microsoft YaHei',Arial,sans-serif;font-size:14px;
+           line-height:1.8;padding:24px 32px;color:#222;max-width:860px;margin:0 auto}
+      h1,h2,h3{font-weight:600;margin:1em 0 0.5em}
+      p{margin:0 0 0.8em}
+      table{border-collapse:collapse;width:100%;margin:1em 0}
+      td,th{border:1px solid #ddd;padding:8px 12px}
+      th{background:#f5f5f5}
+      img{max-width:100%}
+    </style>
+  </head><body>${body}</body></html>`;
+}
+
+/* ── 保存摘要 ── */
+async function saveSummary() {
+  if (!currentItem) return;
+  const summary = document.getElementById('summary-edit').value.trim();
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${currentItem.id}`,
+      {
+        method: 'PATCH',
+        headers: sbHeaders({ 'Prefer': 'return=minimal' }),
+        body: JSON.stringify({ summary })
+      }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    currentItem.summary = summary;
+    showToast('摘要已保存 ✓', 'success');
+  } catch (e) {
+    showToast('保存失败：' + e.message, 'error');
+  }
+}
+
+/* ── 重新生成摘要 ── */
+async function reGenSummary() {
+  if (!currentItem) return;
+
+  const streamBox  = document.getElementById('ai-stream-box');
+  const editBox    = document.getElementById('summary-edit');
+
+  streamBox.textContent = '';
+  streamBox.classList.add('active');
+  editBox.style.display = 'none';
+
+  let text = '';
+  try {
+    const ext = (currentItem.type || '').toLowerCase();
+    if (ext === 'pdf') {
+      text = await fetchAndExtractPDF(currentItem.file_url);
+    } else if (['doc','docx'].includes(ext)) {
+      text = await fetchAndExtractWord(currentItem.file_url);
+    } else if (ext === 'link') {
+      text = `链接：${currentItem.file_url}\n标题：${currentItem.title}`;
+    } else {
+      text = `文件名：${currentItem.title}`;
+    }
+  } catch (e) {
+    showToast('内容提取失败：' + e.message, 'error');
+    streamBox.classList.remove('active');
+    editBox.style.display = '';
+    return;
+  }
+
+  try {
+    const cfg = getAIConfig();
+    const res = await fetch(`${cfg.url}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${cfg.key}` },
+      body: JSON.stringify({
+        model: cfg.model,
+        stream: true,
+        messages: [
+          { role:'system', content:'你是专业的投研助手，请对以下内容生成简洁专业的中文摘要（150字以内），突出核心观点。' },
+          { role:'user', content: text.slice(0, 3000) }
+        ]
+      })
+    });
+    if (!res.ok) throw new Error(await res.text());
+
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let result    = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      decoder.decode(value).split('\n').forEach(line => {
+        if (!line.startsWith('data:')) return;
+        const raw = line.slice(5).trim();
+        if (raw === '[DONE]') return;
+        try {
+          const delta = JSON.parse(raw).choices?.[0]?.delta?.content || '';
+          result += delta;
+          streamBox.textContent = result;
+        } catch {}
+      });
+    }
+
+    // 流式完成 → 写入编辑框
+    editBox.value = result;
+    streamBox.classList.remove('active');
+    editBox.style.display = '';
+    showToast('摘要生成完成，请确认后保存', 'info');
+
+  } catch (e) {
+    showToast('生成失败：' + e.message, 'error');
+    streamBox.classList.remove('active');
+    editBox.style.display = '';
+  }
+}
+
+/* ── 远程获取并提取 PDF 文本 ── */
+async function fetchAndExtractPDF(url) {
+  const pdfjsLib = window['pdfjs-dist/build/pdf'];
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  const pdf  = await pdfjsLib.getDocument(url).promise;
+  let   text = '';
+  for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
+    const page    = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(s => s.str).join(' ') + '\n';
+  }
+  return text;
+}
+
+/* ── 远程获取并提取 Word 文本 ── */
+async function fetchAndExtractWord(url) {
+  const response = await fetch(url);
+  const buffer   = await response.arrayBuffer();
+  const result   = await mammoth.extractRawText({ arrayBuffer: buffer });
+  return result.value;
+}
+
+/* ── 新窗口打开 ── */
+function openNewTab() {
+  if (currentItem?.file_url) window.open(currentItem.file_url, '_blank');
+}
+
+/* ── 删除弹窗 ── */
+function openDeleteModal() {
+  if (!currentItem) return;
+  document.getElementById('delete-name').textContent = currentItem.title || '该内容';
+  document.getElementById('delete-modal').classList.add('open');
+}
+function closeDeleteModal() {
+  document.getElementById('delete-modal').classList.remove('open');
+}
+async function confirmDelete() {
+  if (!currentItem) return;
+  try {
+    // 删除 Storage 文件
+    if (currentItem.type !== 'link' && currentItem.file_url) {
+      const path = currentItem.file_url.split(`/object/public/${SUPABASE_BUCKET}/`)[1];
+      if (path) {
+        await fetch(
+          `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${path}`,
+          { method: 'DELETE', headers: sbHeaders() }
+        );
+      }
+    }
+    // 删除数据库记录
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${currentItem.id}`,
+      { method: 'DELETE', headers: sbHeaders() }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    showToast('删除成功，即将返回列表', 'success');
+    setTimeout(() => { location.href = 'index.html'; }, 1200);
+  } catch (e) {
+    showToast('删除失败：' + e.message, 'error');
+  }
+}
+
+/* ── 错误状态 ── */
+function showError(msg) {
+  document.getElementById('skeleton').style.display    = 'none';
+  document.getElementById('detail-body').style.display = 'none';
+  document.getElementById('error-msg').textContent     = msg;
+  document.getElementById('error-state').style.display = 'flex';
+}
+
+/* ── 工具函数 ── */
+function fileTypeIcon(type) {
+  const map = { pdf:'📄', ppt:'📊', pptx:'📊', doc:'📝', docx:'📝', link:'🔗' };
+  return map[(type||'').toLowerCase()] || '📁';
+}
+function formatDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function escHtml(str) {
+  return String(str||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(str) {
+  return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/* ── 点击遮罩关闭弹窗 ── */
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+
+/* ── 启动 ── */
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
