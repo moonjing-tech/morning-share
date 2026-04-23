@@ -1,5 +1,5 @@
 // ============================================================
-//  投研工作台 · 全局配置
+//  产品工作台 · 全局配置
 //  shared/config.js
 // ============================================================
 
@@ -9,6 +9,13 @@ const SUPABASE_KEY = 'sb_publishable_AXyuAflG7Ts9G-bAr6zHew_9PwG_I5t';
 const SUPABASE_BUCKET = 'files';
 const SUPABASE_TABLE  = 'shares';
 const SUPABASE_APP_TABLE = 'app_updates';
+// GEO 模块
+const SUPABASE_GEO_QUESTIONS_TABLE = 'geo_questions';
+const SUPABASE_GEO_RUNS_TABLE = 'geo_runs';
+const SUPABASE_GEO_BRAND_DICT_TABLE = 'geo_brand_dict';
+const SUPABASE_GEO_PROVIDERS_TABLE = 'geo_providers';
+const SUPABASE_GEO_LATEST_VIEW = 'geo_question_latest_runs';
+const SUPABASE_GEO_PROVIDER_LATEST_VIEW = 'geo_question_provider_latest_runs';
 
 // ── AI 默认配置 ───────────────────────────────────────────
 const AI_DEFAULT_CONFIG = {
@@ -19,18 +26,20 @@ const AI_DEFAULT_CONFIG = {
 
 // ── localStorage Keys ─────────────────────────────────────
 const LS_KEYS = {
-  watchFunds:      'watch_funds',
+  watchFunds: 'watch_funds',
   appLastReadTime: 'app_last_read_time',
-  aiConfig:        'ai_config',
+  aiConfig: 'ai_config',
+  geoApiKey: 'geo_ark_api_key',
 };
 
 // ── 导航页面映射 ──────────────────────────────────────────
 //  path        → { navId, title, icon }
 const NAV_MAP = {
   'index.html':  { navId: 'nav-list', title: '晨会分享',     icon: '🚀' },
-  'detail.html': { navId: 'nav-list', title: '内容详情',     icon: '📄' },  // 归属晨会
+  'detail.html': { navId: 'nav-list', title: '内容详情',     icon: '📄' },
   'fund.html':   { navId: 'nav-fund', title: '基金实时估值', icon: '📈' },
   'app.html':    { navId: 'nav-app',  title: '竞品追踪',     icon: '📱' },
+  'geo.html':    { navId: 'nav-geo',  title: 'GEO监测',     icon: '🌐' },
 };
 
 // ── 工具函数：读取 AI 配置（优先 localStorage）─────────────

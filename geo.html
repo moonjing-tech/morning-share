@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GEO监测</title>
+
+  <link rel="stylesheet" href="./shared/base.css" />
+  <link rel="stylesheet" href="./shared/nav.css" />
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./shared/config.js"></script>
+  <script src="./shared/nav.js"></script>
+
+  <style>
+  .geo-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .geo-toolbar,
+  .geo-card,
+  .geo-modal-card {
+    background: rgba(16, 24, 48, 0.92);
+    border: 1px solid rgba(120, 160, 255, 0.22);
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  }
+
+  .geo-toolbar {
+    padding: 16px;
+  }
+
+  .geo-toolbar-top,
+  .geo-toolbar-bottom {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .geo-toolbar-bottom {
+    margin-top: 12px;
+  }
+
+  .geo-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 180px;
+    flex: 1;
+  }
+
+  .geo-field.small {
+    min-width: 120px;
+    flex: 0 0 140px;
+  }
+
+  .geo-label {
+    font-size: 12px;
+    color: #a8b8d3;
+  }
+
+  .geo-input,
+  .geo-select,
+  .geo-textarea {
+    width: 100%;
+    border: 1px solid rgba(120, 160, 255, 0.24);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+    outline: none;
+    transition: all 0.2s ease;
+    background: rgba(255, 255, 255, 0.04);
+    color: #e2e8f0;
+    box-sizing: border-box;
+  }
+
+  .geo-input::placeholder,
+  .geo-textarea::placeholder {
+    color: #a8b8d3;
+  }
+
+  .geo-select option {
+    background: #0f172a;
+    color: #e2e8f0;
+  }
+
+  .geo-input:focus,
+  .geo-select:focus,
+  .geo-textarea:focus {
+    border-color: #4f8ef7;
+    box-shadow: 0 0 0 3px rgba(79, 142, 247, 0.12);
+  }
+
+  .geo-textarea {
+    min-height: 96px;
+    resize: vertical;
+  }
+
+  .geo-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .geo-btn {
+    border: none;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .geo-btn.primary {
+    background: linear-gradient(135deg, #4f8ef7 0%, #3b82f6 100%);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(79, 142, 247, 0.28);
+  }
+
+  .geo-btn.primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(79, 142, 247, 0.35);
+  }
+
+  .geo-btn.secondary {
+    background: rgba(79, 142, 247, 0.08);
+    color: #93c5fd;
+    border: 1px solid rgba(79, 142, 247, 0.24);
+  }
+
+  .geo-btn.secondary:hover {
+    background: rgba(79, 142, 247, 0.14);
+  }
+
+  .geo-btn.success {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.24);
+  }
+
+  .geo-btn.success:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(16, 185, 129, 0.32);
+  }
+
+  .geo-btn.warn {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: #fff;
+  }
+
+  .geo-btn.warn:hover {
+    transform: translateY(-1px);
+  }
+
+  .geo-btn.danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.22);
+  }
+
+  .geo-btn.danger:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(239, 68, 68, 0.3);
+  }
+
+  .geo-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  .geo-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .geo-provider-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .geo-card {
+    padding: 16px;
+  }
+
+  .geo-stat-title {
+    font-size: 13px;
+    color: #a8b8d3;
+    margin-bottom: 8px;
+  }
+
+  .geo-stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #e8eef8;
+    line-height: 1.2;
+  }
+
+  .geo-stat-sub {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #a8b8d3;
+  }
+
+  .geo-section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #e8eef8;
+    margin-bottom: 12px;
+  }
+
+  .geo-provider-card {
+    background: linear-gradient(180deg, rgba(16, 24, 48, 0.96) 0%, rgba(22, 32, 64, 0.92) 100%);
+  }
+
+  .geo-provider-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #e8eef8;
+  }
+
+  .geo-provider-model {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #a8b8d3;
+    word-break: break-all;
+  }
+
+  .geo-provider-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .geo-mini-metric {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(120, 160, 255, 0.14);
+    border-radius: 12px;
+    padding: 10px;
+  }
+
+  .geo-mini-label {
+    font-size: 12px;
+    color: #a8b8d3;
+  }
+
+  .geo-mini-value {
+    margin-top: 4px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #e8eef8;
+  }
+
+  .geo-progress-card {
+    padding: 14px 16px;
+    border: 1px solid rgba(79, 142, 247, 0.24);
+    background: rgba(20, 32, 64, 0.92);
+  }
+
+  .geo-progress-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+
+  .geo-progress-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #93c5fd;
+  }
+
+  .geo-progress-text {
+    font-size: 13px;
+    color: #a8b8d3;
+  }
+
+  .geo-progress-bar {
+    width: 100%;
+    height: 10px;
+    background: rgba(79, 142, 247, 0.14);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .geo-progress-inner {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #2563eb, #38bdf8);
+    transition: width 0.25s ease;
+  }
+
+  .geo-progress-detail {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #a8b8d3;
+  }
+
+  .geo-table-wrap {
+    overflow: auto;
+    background: rgba(16, 24, 48, 0.92);
+    border: 1px solid rgba(120, 160, 255, 0.22);
+    border-radius: 16px;
+  }
+
+  .geo-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1200px;
+  }
+
+  .geo-table th,
+  .geo-table td {
+    border-bottom: 1px solid rgba(120, 160, 255, 0.08);
+    padding: 12px;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .geo-table th {
+    background: rgba(10, 16, 36, 0.96);
+    color: #a8b8d3;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  .geo-table td {
+    color: #dbe7f5;
+  }
+
+  .geo-table tr:hover td {
+    background: rgba(79, 142, 247, 0.04);
+  }
+
+  .geo-question-text {
+    font-weight: 600;
+    color: #e8eef8;
+    line-height: 1.5;
+  }
+
+  .geo-subtext {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #a8b8d3;
+    line-height: 1.5;
+  }
+
+  .geo-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    border: 1px solid transparent;
+    margin-right: 6px;
+    margin-bottom: 6px;
+  }
+
+  .geo-badge.gray {
+    background: rgba(148, 163, 184, 0.12);
+    color: #cbd5e1;
+    border-color: rgba(148, 163, 184, 0.22);
+  }
+
+  .geo-badge.green {
+    background: rgba(16, 185, 129, 0.12);
+    color: #6ee7b7;
+    border-color: rgba(16, 185, 129, 0.3);
+  }
+
+  .geo-badge.red {
+    background: rgba(239, 68, 68, 0.12);
+    color: #fca5a5;
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+
+  .geo-badge.blue {
+    background: rgba(79, 142, 247, 0.12);
+    color: #93c5fd;
+    border-color: rgba(79, 142, 247, 0.3);
+  }
+
+  .geo-badge.yellow {
+    background: rgba(245, 158, 11, 0.12);
+    color: #fcd34d;
+    border-color: rgba(245, 158, 11, 0.3);
+  }
+
+  .geo-result-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 320px;
+  }
+
+  .geo-result-item {
+    border: 1px solid rgba(120, 160, 255, 0.14);
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    padding: 10px;
+  }
+
+  .geo-result-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+
+  .geo-result-provider {
+    font-size: 13px;
+    font-weight: 700;
+    color: #e8eef8;
+  }
+
+  .geo-result-model {
+    font-size: 12px;
+    color: #a8b8d3;
+    word-break: break-all;
+  }
+
+  .geo-result-meta {
+    font-size: 12px;
+    color: #a8b8d3;
+  }
+
+  .geo-inline-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .geo-link-btn {
+    background: none;
+    border: none;
+    color: #60a5fa;
+    cursor: pointer;
+    padding: 0;
+    font-size: 13px;
+  }
+
+  .geo-link-btn:hover {
+    text-decoration: underline;
+    color: #93c5fd;
+  }
+
+  .geo-empty {
+    padding: 30px 16px;
+    text-align: center;
+    color: #a8b8d3;
+    font-size: 14px;
+  }
+
+  .geo-tip {
+    font-size: 12px;
+    color: #a8b8d3;
+  }
+
+  .geo-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 8, 20, 0.72);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 2000;
+  }
+
+  .geo-modal.show {
+    display: flex;
+  }
+
+  .geo-modal-card {
+    width: min(920px, 100%);
+    max-height: 85vh;
+    overflow: auto;
+    padding: 18px;
+  }
+
+  .geo-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .geo-modal-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #e8eef8;
+  }
+
+  .geo-detail-block {
+    border: 1px solid rgba(120, 160, 255, 0.14);
+    border-radius: 14px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    margin-bottom: 12px;
+  }
+
+  .geo-detail-label {
+    font-size: 12px;
+    color: #a8b8d3;
+    margin-bottom: 6px;
+  }
+
+  .geo-detail-content {
+    font-size: 14px;
+    color: #e8eef8;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  @media (max-width: 1200px) {
+    .geo-stats-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .geo-provider-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 768px) {
+    .geo-stats-grid,
+    .geo-provider-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .geo-field,
+    .geo-field.small {
+      min-width: 100%;
+      flex: 1 1 100%;
+    }
+
+    .geo-actions {
+      width: 100%;
+    }
+
+    .geo-btn {
+      width: 100%;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="layout">
+    <div id="nav-placeholder"></div>
+
+    <main class="main">
+      <header class="header">
+       <div class="header-title">
+        <span class="page-icon">📈</span>
+        <h1>GEO监测-监测不同 AI 模型下“汇添富”在自然问题中的提及率、首位提及率与推荐表现</h1>
+      </div>
+      </header>
+
+      <div class="content">
+        <div class="geo-page">
+          <!-- 工具栏 -->
+          <section class="geo-toolbar">
+            <div class="geo-toolbar-top">
+              <div class="geo-field">
+                <label class="geo-label">Ark API Key（本地保存）</label>
+                <input id="apiKeyInput" class="geo-input" type="password" placeholder="请输入 Ark API Key" />
+              </div>
+
+              <div class="geo-field small">
+                <label class="geo-label">搜索问题</label>
+                <input id="searchInput" class="geo-input" type="text" placeholder="按问题内容搜索" />
+              </div>
+
+              <div class="geo-field small">
+                <label class="geo-label">赛道</label>
+                <select id="trackFilter" class="geo-select">
+                  <option value="">全部赛道</option>
+                </select>
+              </div>
+
+              <div class="geo-field small">
+                <label class="geo-label">意图</label>
+                <select id="intentFilter" class="geo-select">
+                  <option value="">全部意图</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="geo-toolbar-bottom">
+              <div class="geo-actions">
+                <button id="saveApiKeyBtn" class="geo-btn secondary">保存 API Key</button>
+                <button id="refreshBtn" class="geo-btn secondary">刷新数据</button>
+                <button id="addQuestionBtn" class="geo-btn primary">新增问题</button>
+                <button id="batchRunBtn" class="geo-btn success">批量运行全部问题 × 全部模型</button>
+                <button id="stopBatchBtn" class="geo-btn danger" disabled>停止批量运行</button>
+              </div>
+              <div id="toolbarTip" class="geo-tip"></div>
+            </div>
+          </section>
+
+          <!-- 批量进度 -->
+          <section id="batchProgressCard" class="geo-card geo-progress-card" style="display:none;">
+            <div class="geo-progress-top">
+              <div class="geo-progress-title">批量运行中</div>
+              <div id="batchProgressText" class="geo-progress-text">0 / 0</div>
+            </div>
+            <div class="geo-progress-bar">
+              <div id="batchProgressInner" class="geo-progress-inner"></div>
+            </div>
+            <div id="batchProgressDetail" class="geo-progress-detail">准备中...</div>
+          </section>
+
+          <!-- 总体统计 -->
+          <section>
+            <div class="geo-section-title">总体统计</div>
+            <div class="geo-stats-grid">
+              <div class="geo-card">
+                <div class="geo-stat-title">问题数</div>
+                <div id="statQuestions" class="geo-stat-value">0</div>
+                <div class="geo-stat-sub">当前筛选结果中的问题总数</div>
+              </div>
+
+              <div class="geo-card">
+                <div class="geo-stat-title">Mention Rate</div>
+                <div id="statMentionRate" class="geo-stat-value">0%</div>
+                <div class="geo-stat-sub">最近一次结果中提及“汇添富”的占比</div>
+              </div>
+
+              <div class="geo-card">
+                <div class="geo-stat-title">First Mention Rate</div>
+                <div id="statFirstRate" class="geo-stat-value">0%</div>
+                <div class="geo-stat-sub">最近一次结果中首位提及“汇添富”的占比</div>
+              </div>
+
+              <div class="geo-card">
+                <div class="geo-stat-title">Top Recommendation Rate</div>
+                <div id="statTopRate" class="geo-stat-value">0%</div>
+                <div class="geo-stat-sub">最近一次结果中重点推荐“汇添富”的占比</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 按模型统计 -->
+          <section>
+            <div class="geo-section-title">按模型统计</div>
+            <div id="providerStats" class="geo-provider-grid"></div>
+          </section>
+
+          <!-- 问题列表 -->
+          <section>
+            <div class="geo-section-title">问题列表（按模型展示最近结果）</div>
+            <div class="geo-table-wrap">
+              <table class="geo-table">
+                <thead>
+                  <tr>
+                    <th style="width: 26%;">问题</th>
+                    <th style="width: 12%;">标签</th>
+                    <th style="width: 42%;">各模型最近结果</th>
+                    <th style="width: 20%;">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="questionTableBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- 新增问题弹窗 -->
+  <div id="questionModal" class="geo-modal">
+    <div class="geo-modal-card">
+      <div class="geo-modal-header">
+        <div class="geo-modal-title">新增 GEO 问题</div>
+        <button class="geo-btn secondary" onclick="closeQuestionModal()">关闭</button>
+      </div>
+
+      <div class="geo-field" style="margin-bottom:12px;">
+        <label class="geo-label">问题</label>
+        <textarea id="newQuestionText" class="geo-textarea" placeholder="请输入自然问题，例如：长期定投选哪家基金公司？"></textarea>
+      </div>
+
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <div class="geo-field small">
+          <label class="geo-label">赛道</label>
+          <input id="newQuestionTrack" class="geo-input" type="text" placeholder="如：定投" />
+        </div>
+
+        <div class="geo-field small">
+          <label class="geo-label">意图</label>
+          <input id="newQuestionIntent" class="geo-input" type="text" placeholder="如：品牌选择" />
+        </div>
+
+        <div class="geo-field small">
+          <label class="geo-label">人群</label>
+          <input id="newQuestionPersona" class="geo-input" type="text" placeholder="如：理财新手" />
+        </div>
+
+        <div class="geo-field small">
+          <label class="geo-label">优先级</label>
+          <select id="newQuestionPriority" class="geo-select">
+            <option value="high">高</option>
+            <option value="medium" selected>中</option>
+            <option value="low">低</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-top:16px; display:flex; gap:10px;">
+        <button id="saveQuestionBtn" class="geo-btn primary">保存问题</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 详情弹窗 -->
+  <div id="detailModal" class="geo-modal">
+    <div class="geo-modal-card">
+      <div class="geo-modal-header">
+        <div class="geo-modal-title">运行详情</div>
+        <button class="geo-btn secondary" onclick="closeDetailModal()">关闭</button>
+      </div>
+
+      <div class="geo-detail-block">
+        <div class="geo-detail-label">问题</div>
+        <div id="detailQuestion" class="geo-detail-content"></div>
+      </div>
+
+      <div class="geo-detail-block">
+        <div class="geo-detail-label">模型 / Provider</div>
+        <div id="detailProvider" class="geo-detail-content"></div>
+      </div>
+
+      <div class="geo-detail-block">
+        <div class="geo-detail-label">识别结果</div>
+        <div id="detailJudge" class="geo-detail-content"></div>
+      </div>
+
+      <div class="geo-detail-block">
+        <div class="geo-detail-label">原始回答</div>
+        <div id="detailResponse" class="geo-detail-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const GEO_API_KEY_STORAGE = LS_KEYS.geoApiKey;
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let questions = [];
+    let providers = [];
+    let latestRows = [];
+    let filteredQuestions = [];
+    let isLoading = false;
+    let stopBatchRequested = false;
+
+    let batchState = {
+      running: false,
+      total: 0,
+      done: 0,
+      currentQuestion: '',
+      currentProvider: ''
+    };
+
+    function $(id) {
+      return document.getElementById(id);
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, s => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[s]));
+    }
+
+    function toast(msg) {
+      $('toolbarTip').textContent = msg || '';
+    }
+
+    function mapPriorityToNumber(priority) {
+      const map = {
+      high: 3,
+       medium: 2,
+      low: 1
+      };
+     return map[priority] || 2;
+  }
+  function formatPriority(priority) {
+  const map = {
+    3: '高',
+    2: '中',
+    1: '低',
+    high: '高',
+    medium: '中',
+    low: '低'
+    };
+  return map[priority] || String(priority || '');
+  }
+
+    function formatPct(num) {
+      if (!isFinite(num)) return '0%';
+      return (num * 100).toFixed(1).replace(/\.0$/, '') + '%';
+    }
+
+    function formatDateTime(value) {
+      if (!value) return '-';
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return value;
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      return `${y}-${m}-${day} ${hh}:${mm}`;
+    }
+
+    function getSavedApiKey() {
+      return localStorage.getItem(GEO_API_KEY_STORAGE) || '';
+    }
+
+    function setSavedApiKey(v) {
+      localStorage.setItem(GEO_API_KEY_STORAGE, v || '');
+    }
+
+    function buildUniqueOptions(list, field) {
+      const values = [...new Set(list.map(x => (x[field] || '').trim()).filter(Boolean))];
+      return values.sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    }
+
+    function fillFilterOptions() {
+      const tracks = buildUniqueOptions(questions, 'track');
+      const intents = buildUniqueOptions(questions, 'intent');
+
+      $('trackFilter').innerHTML = '<option value="">全部赛道</option>' +
+        tracks.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
+
+      $('intentFilter').innerHTML = '<option value="">全部意图</option>' +
+        intents.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
+    }
+
+    function getGroupedLatestMap() {
+      const map = {};
+      for (const row of latestRows) {
+        const qid = row.question_id;
+        const provider = row.provider || '';
+        if (!map[qid]) map[qid] = {};
+        if (provider) map[qid][provider] = row;
+      }
+      return map;
+    }
+
+    function getFilteredQuestions() {
+      const kw = ($('searchInput').value || '').trim().toLowerCase();
+      const track = $('trackFilter').value || '';
+      const intent = $('intentFilter').value || '';
+
+      return questions.filter(q => {
+        const okKw = !kw || String(q.question || '').toLowerCase().includes(kw);
+        const okTrack = !track || (q.track || '') === track;
+        const okIntent = !intent || (q.intent || '') === intent;
+        return okKw && okTrack && okIntent;
+      });
+    }
+
+    function calcOverallStats(groupedMap, questionList) {
+      let total = 0;
+      let mentioned = 0;
+      let firstMentioned = 0;
+      let topRecommended = 0;
+
+      for (const q of questionList) {
+        const providerMap = groupedMap[q.id] || {};
+        const rows = Object.values(providerMap).filter(Boolean);
+
+        if (!rows.length) continue;
+
+        for (const row of rows) {
+          if (!row.provider) continue;
+          total += 1;
+          if (row.run_status === 'success' && row.is_mentioned) mentioned += 1;
+          if (row.run_status === 'success' && row.is_first_mentioned) firstMentioned += 1;
+          if (row.run_status === 'success' && row.is_top_recommended) topRecommended += 1;
+        }
+      }
+
+      return {
+        total,
+        mentioned,
+        firstMentioned,
+        topRecommended
+      };
+    }
+
+    function calcProviderStats() {
+      const valid = latestRows.filter(x => x.provider);
+      const grouped = {};
+
+      for (const row of valid) {
+        const key = row.provider || 'unknown';
+        if (!grouped[key]) {
+          grouped[key] = {
+            provider: row.provider || '',
+            modelName: row.model_name || '',
+            total: 0,
+            mentioned: 0,
+            firstMentioned: 0,
+            topRecommended: 0,
+            failed: 0
+          };
+        }
+
+        grouped[key].total += 1;
+
+        if (row.run_status !== 'success') {
+          grouped[key].failed += 1;
+          continue;
+        }
+
+        if (row.is_mentioned) grouped[key].mentioned += 1;
+        if (row.is_first_mentioned) grouped[key].firstMentioned += 1;
+        if (row.is_top_recommended) grouped[key].topRecommended += 1;
+      }
+
+      return Object.values(grouped).sort((a, b) => (a.provider || '').localeCompare(b.provider || '', 'zh-CN'));
+    }
+
+    function renderStats() {
+      const groupedMap = getGroupedLatestMap();
+      const stats = calcOverallStats(groupedMap, filteredQuestions);
+
+      $('statQuestions').textContent = String(filteredQuestions.length);
+      $('statMentionRate').textContent = stats.total ? formatPct(stats.mentioned / stats.total) : '0%';
+      $('statFirstRate').textContent = stats.total ? formatPct(stats.firstMentioned / stats.total) : '0%';
+      $('statTopRate').textContent = stats.total ? formatPct(stats.topRecommended / stats.total) : '0%';
+
+      const providerStats = calcProviderStats();
+      const wrap = $('providerStats');
+
+      if (!providerStats.length) {
+        wrap.innerHTML = '<div class="geo-card geo-empty" style="grid-column:1/-1;">暂无模型运行数据</div>';
+        return;
+      }
+
+      wrap.innerHTML = providerStats.map(item => {
+        const mentionRate = item.total ? formatPct(item.mentioned / item.total) : '0%';
+        const firstRate = item.total ? formatPct(item.firstMentioned / item.total) : '0%';
+        const topRate = item.total ? formatPct(item.topRecommended / item.total) : '0%';
+
+        return `
+          <div class="geo-card geo-provider-card">
+            <div class="geo-provider-name">${escapeHtml(item.provider || '-')}</div>
+            <div class="geo-provider-model">${escapeHtml(item.modelName || '-')}</div>
+
+            <div class="geo-provider-metrics">
+              <div class="geo-mini-metric">
+                <div class="geo-mini-label">样本数</div>
+                <div class="geo-mini-value">${item.total}</div>
+              </div>
+              <div class="geo-mini-metric">
+                <div class="geo-mini-label">提及率</div>
+                <div class="geo-mini-value">${mentionRate}</div>
+              </div>
+              <div class="geo-mini-metric">
+                <div class="geo-mini-label">首位提及率</div>
+                <div class="geo-mini-value">${firstRate}</div>
+              </div>
+              <div class="geo-mini-metric">
+                <div class="geo-mini-label">重点推荐率</div>
+                <div class="geo-mini-value">${topRate}</div>
+              </div>
+            </div>
+
+            <div class="geo-stat-sub" style="margin-top:10px;">
+              失败/异常：${item.failed}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function resultBadges(row) {
+      if (!row || !row.provider) {
+        return '<span class="geo-badge gray">暂无结果</span>';
+      }
+
+      if (row.run_status !== 'success') {
+        return `
+          <span class="geo-badge red">运行失败</span>
+          <span class="geo-badge gray">${escapeHtml(row.run_status || 'failed')}</span>
+        `;
+      }
+
+      const arr = [];
+      arr.push(row.is_mentioned
+        ? '<span class="geo-badge green">已提及</span>'
+        : '<span class="geo-badge red">未提及</span>');
+
+      if (row.is_first_mentioned) {
+        arr.push('<span class="geo-badge blue">首位提及</span>');
+      }
+
+      if (row.is_top_recommended) {
+        arr.push('<span class="geo-badge yellow">重点推荐</span>');
+      }
+
+      return arr.join('');
+    }
+
+    function renderTable() {
+  const tbody = $('questionTableBody');
+  const groupedMap = getGroupedLatestMap();
+
+  if (!filteredQuestions.length) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4">
+          <div class="geo-empty">暂无符合条件的问题</div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = filteredQuestions.map(q => {
+    const providerMap = groupedMap[q.id] || {};
+    const resultHtml = providers.map(p => {
+      const row = providerMap[p.provider_code];
+      return `
+        <div class="geo-result-item">
+          <div class="geo-result-top">
+            <div>
+              <div class="geo-result-provider">${escapeHtml(p.provider_name || p.provider_code)}</div>
+              <div class="geo-result-model">${escapeHtml(p.model_name || '-')}</div>
+            </div>
+            <div class="geo-result-meta">
+              ${row?.run_time ? formatDateTime(row.run_time) : '未运行'}
+            </div>
+          </div>
+          <div>${resultBadges(row)}</div>
+          <div class="geo-inline-actions" style="margin-top:8px;">
+            <button class="geo-link-btn" onclick="runSingleQuestion('${q.id}', '${p.provider_code}')">运行该模型</button>
+            ${row?.run_id ? `<button class="geo-link-btn" onclick="showDetailByRunId('${row.run_id}')">查看详情</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <tr>
+        <td>
+          <div class="geo-question-text">${escapeHtml(q.question || '')}</div>
+          <div class="geo-subtext">创建时间：${formatDateTime(q.created_at)}</div>
+        </td>
+        <td>
+          <div><span class="geo-badge gray">${escapeHtml(q.track || '未分类')}</span></div>
+          <div><span class="geo-badge gray">${escapeHtml(q.intent || '未标注')}</span></div>
+          ${q.persona ? `<div><span class="geo-badge gray">${escapeHtml(q.persona)}</span></div>` : ''}
+          ${q.priority !== null && q.priority !== undefined && q.priority !== ''
+            ? `<div><span class="geo-badge gray">优先级：${escapeHtml(formatPriority(q.priority))}</span></div>`
+            : ''}
+        </td>
+        <td>
+          <div class="geo-result-list">${resultHtml || '<span class="geo-badge gray">暂无模型</span>'}</div>
+        </td>
+        <td>
+          <div class="geo-inline-actions">
+            <button class="geo-btn secondary" onclick="runQuestionAllProviders('${q.id}')">运行全部模型</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+    function renderAll() {
+      filteredQuestions = getFilteredQuestions();
+      renderStats();
+      renderTable();
+    }
+
+    function updateBatchProgress(done, total, questionText = '', providerText = '') {
+      batchState.done = done;
+      batchState.total = total;
+      batchState.currentQuestion = questionText || '';
+      batchState.currentProvider = providerText || '';
+
+      const visible = batchState.running || total > 0;
+      $('batchProgressCard').style.display = visible ? 'block' : 'none';
+
+      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      $('batchProgressText').textContent = `${done} / ${total}`;
+      $('batchProgressInner').style.width = `${pct}%`;
+      $('batchProgressDetail').textContent =
+        questionText || providerText
+          ? `当前：${questionText || '-'}${providerText ? ' ｜ 模型：' + providerText : ''}`
+          : '准备中...';
+    }
+
+    function resetBatchProgress() {
+      batchState = {
+        running: false,
+        total: 0,
+        done: 0,
+        currentQuestion: '',
+        currentProvider: ''
+      };
+      updateBatchProgress(0, 0, '', '');
+      $('batchProgressCard').style.display = 'none';
+    }
+
+    function setBatchRunning(flag) {
+      batchState.running = flag;
+      $('batchRunBtn').disabled = flag;
+      $('stopBatchBtn').disabled = !flag;
+    }
+
+    async function loadQuestions() {
+      const { data, error } = await sb
+        .from(SUPABASE_GEO_QUESTIONS_TABLE)
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      questions = data || [];
+    }
+
+    async function loadProviders() {
+      const { data, error } = await sb
+        .from(SUPABASE_GEO_PROVIDERS_TABLE)
+        .select('*')
+        .eq('enabled', true)
+        .order('sort_order', { ascending: true });
+
+      if (error) throw error;
+      providers = data || [];
+    }
+
+    async function loadLatestRuns() {
+      const { data, error } = await sb
+        .from(SUPABASE_GEO_PROVIDER_LATEST_VIEW)
+        .select('*')
+        .order('question_created_at', { ascending: false });
+
+      if (error) throw error;
+      latestRows = data || [];
+    }
+
+    async function refreshData(silent = false) {
+      try {
+        isLoading = true;
+        if (!silent) toast('正在刷新数据...');
+        await Promise.all([
+          loadQuestions(),
+          loadProviders(),
+          loadLatestRuns()
+        ]);
+        fillFilterOptions();
+        renderAll();
+        if (!silent) toast(`刷新完成：${questions.length} 个问题，${providers.length} 个模型`);
+      } catch (err) {
+        console.error(err);
+        toast('刷新失败：' + (err.message || err));
+      } finally {
+        isLoading = false;
+      }
+    }
+
+    async function saveQuestion() {
+  const question = $('newQuestionText').value.trim();
+  const track = $('newQuestionTrack').value.trim();
+  const intent = $('newQuestionIntent').value.trim();
+  const persona = $('newQuestionPersona').value.trim();
+  const priority = $('newQuestionPriority').value;
+
+  if (!question) {
+    alert('请输入问题');
+    return;
+  }
+
+  const payload = {
+    question,
+    track: track || null,
+    intent: intent || null,
+    persona: persona || null,
+    priority: mapPriorityToNumber(priority),
+    status: 'active'
+  };
+
+  const { error } = await sb
+    .from(SUPABASE_GEO_QUESTIONS_TABLE)
+    .insert(payload);
+
+  if (error) throw error;
+
+  closeQuestionModal();
+  await refreshData();
+  toast('新增问题成功');
+}
+
+    function judgeTTF(text) {
+      const raw = String(text || '');
+      const normalized = raw
+        .replace(/\s+/g, '')
+        .replace(/[（(]/g, '(')
+        .replace(/[）)]/g, ')');
+
+      const aliases = [
+        '汇添富',
+        '汇添富基金',
+        '汇添富基金管理',
+        '汇添富基金管理股份有限公司'
+      ];
+
+      const isMentioned = aliases.some(k => normalized.includes(k));
+
+      let isFirstMentioned = false;
+      let isTopRecommended = false;
+
+      if (isMentioned) {
+        const indexList = aliases
+          .map(k => normalized.indexOf(k))
+          .filter(i => i >= 0)
+          .sort((a, b) => a - b);
+
+        const firstHit = indexList.length ? indexList[0] : -1;
+
+        const competitorKeywords = [
+          '易方达', '华夏', '富国', '中欧', '南方', '嘉实', '广发', '博时',
+          '兴证全球', '工银瑞信', '招商', '景顺长城', '天弘', '鹏华', '银华'
+        ];
+
+        let earlierCompetitor = false;
+        for (const name of competitorKeywords) {
+          const idx = normalized.indexOf(name);
+          if (idx >= 0 && idx < firstHit) {
+            earlierCompetitor = true;
+            break;
+          }
+        }
+
+        isFirstMentioned = !earlierCompetitor;
+
+        const topWindow = normalized.slice(0, 120);
+        const recommendWords = ['推荐', '优先', '首选', '值得', '可以考虑', '比较适合'];
+
+        isTopRecommended =
+          aliases.some(k => topWindow.includes(k)) &&
+          recommendWords.some(k => raw.includes(k) || normalized.includes(k));
+      }
+
+      return {
+        is_mentioned: isMentioned,
+        is_first_mentioned: isFirstMentioned,
+        is_top_recommended: isTopRecommended,
+        confidence_score: isMentioned ? 0.85 : 0.75
+      };
+    }
+
+    async function callProvider(provider, question, apiKey) {
+      const baseUrl = (provider.base_url || '').replace(/\/$/, '');
+      const url = baseUrl + '/chat/completions';
+
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + apiKey
+        },
+        body: JSON.stringify({
+          model: provider.model_name,
+          messages: [
+            {
+              role: 'system',
+              content: '你是基金产品与财富管理领域助手。请直接回答用户问题，尽量给出基金公司或基金品牌的具体名称，并说明理由。'
+            },
+            {
+              role: 'user',
+              content: question
+            }
+          ],
+          temperature: 0.7
+        })
+      });
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error('调用失败: ' + resp.status + ' ' + text);
+      }
+
+      const json = await resp.json();
+      return json?.choices?.[0]?.message?.content || '';
+    }
+
+    async function insertRunRecord(payload) {
+      const { error } = await sb
+        .from(SUPABASE_GEO_RUNS_TABLE)
+        .insert(payload);
+
+      if (error) throw error;
+    }
+
+    async function runOneQuestionWithProvider(questionObj, provider, apiKey) {
+      const questionText = questionObj.question || '';
+      let rawResponse = '';
+      let judge = {
+        is_mentioned: false,
+        is_first_mentioned: false,
+        is_top_recommended: false,
+        confidence_score: 0
+      };
+      let runStatus = 'success';
+
+      try {
+        rawResponse = await callProvider(provider, questionText, apiKey);
+        judge = judgeTTF(rawResponse);
+      } catch (err) {
+        runStatus = 'failed';
+        rawResponse = String(err.message || err || 'unknown error');
+      }
+
+      await insertRunRecord({
+        question_id: questionObj.id,
+        provider: provider.provider_code,
+        model_name: provider.model_name,
+        raw_response: rawResponse,
+        is_mentioned: !!judge.is_mentioned,
+        is_first_mentioned: !!judge.is_first_mentioned,
+        is_top_recommended: !!judge.is_top_recommended,
+        confidence_score: judge.confidence_score || 0,
+        run_status: runStatus,
+        run_time: new Date().toISOString()
+      });
+    }
+
+    async function runSingleQuestion(questionId, providerCode) {
+      const apiKey = getSavedApiKey().trim();
+      if (!apiKey) {
+        alert('请先填写并保存 Ark API Key');
+        return;
+      }
+
+      const questionObj = questions.find(x => String(x.id) === String(questionId));
+      const provider = providers.find(x => x.provider_code === providerCode);
+
+      if (!questionObj || !provider) {
+        alert('未找到问题或模型配置');
+        return;
+      }
+
+      try {
+        toast(`正在运行：${questionObj.question} / ${provider.provider_name || provider.provider_code}`);
+        await runOneQuestionWithProvider(questionObj, provider, apiKey);
+        await refreshData(true);
+        renderAll();
+        toast(`运行完成：${provider.provider_name || provider.provider_code}`);
+      } catch (err) {
+        console.error(err);
+        toast('运行失败：' + (err.message || err));
+      }
+    }
+
+    async function runQuestionAllProviders(questionId) {
+      const apiKey = getSavedApiKey().trim();
+      if (!apiKey) {
+        alert('请先填写并保存 Ark API Key');
+        return;
+      }
+
+      const questionObj = questions.find(x => String(x.id) === String(questionId));
+      if (!questionObj) {
+        alert('未找到问题');
+        return;
+      }
+
+      try {
+        for (const provider of providers) {
+          toast(`正在运行：${questionObj.question} / ${provider.provider_name || provider.provider_code}`);
+          await runOneQuestionWithProvider(questionObj, provider, apiKey);
+        }
+        await refreshData(true);
+        renderAll();
+        toast('该问题的全部模型已运行完成');
+      } catch (err) {
+        console.error(err);
+        toast('批量运行该问题失败：' + (err.message || err));
+      }
+    }
+
+    async function runBatchAll() {
+      const apiKey = getSavedApiKey().trim();
+      if (!apiKey) {
+        alert('请先填写并保存 Ark API Key');
+        return;
+      }
+
+      if (!questions.length) {
+        alert('当前没有 GEO 问题');
+        return;
+      }
+
+      if (!providers.length) {
+        alert('当前没有启用的模型配置');
+        return;
+      }
+
+      const questionList = getFilteredQuestions();
+      if (!questionList.length) {
+        alert('当前筛选条件下没有问题可运行');
+        return;
+      }
+
+      const total = questionList.length * providers.length;
+      let done = 0;
+      stopBatchRequested = false;
+
+      setBatchRunning(true);
+      updateBatchProgress(0, total, '', '');
+
+      try {
+        for (const q of questionList) {
+          for (const p of providers) {
+            if (stopBatchRequested) {
+              toast('批量运行已停止');
+              return;
+            }
+
+            updateBatchProgress(done, total, q.question, p.provider_name || p.provider_code);
+            toast(`运行中：${done + 1}/${total}`);
+
+            try {
+              await runOneQuestionWithProvider(q, p, apiKey);
+            } catch (err) {
+              console.error('batch item failed', err);
+            }
+
+            done += 1;
+            updateBatchProgress(done, total, q.question, p.provider_name || p.provider_code);
+          }
+        }
+
+        await refreshData(true);
+        renderAll();
+        toast(`批量运行完成：${done}/${total}`);
+      } catch (err) {
+        console.error(err);
+        toast('批量运行失败：' + (err.message || err));
+      } finally {
+        setBatchRunning(false);
+        if (!stopBatchRequested) {
+          setTimeout(() => {
+            resetBatchProgress();
+          }, 1200);
+        }
+      }
+    }
+
+    function stopBatchRun() {
+      stopBatchRequested = true;
+      setBatchRunning(false);
+      $('batchProgressDetail').textContent = '已请求停止，等待当前任务结束...';
+    }
+
+    async function showDetailByRunId(runId) {
+      try {
+        const { data, error } = await sb
+          .from(SUPABASE_GEO_RUNS_TABLE)
+          .select('*')
+          .eq('id', runId)
+          .single();
+
+        if (error) throw error;
+
+        const q = questions.find(x => String(x.id) === String(data.question_id));
+        $('detailQuestion').textContent = q?.question || '-';
+        $('detailProvider').textContent =
+          `${data.provider || '-'} / ${data.model_name || '-'} / ${formatDateTime(data.run_time)}`;
+
+        $('detailJudge').textContent = [
+          `run_status: ${data.run_status || '-'}`,
+          `is_mentioned: ${data.is_mentioned ? 'true' : 'false'}`,
+          `is_first_mentioned: ${data.is_first_mentioned ? 'true' : 'false'}`,
+          `is_top_recommended: ${data.is_top_recommended ? 'true' : 'false'}`,
+          `confidence_score: ${data.confidence_score ?? '-'}`
+        ].join('\n');
+
+        $('detailResponse').textContent = data.raw_response || '';
+        $('detailModal').classList.add('show');
+      } catch (err) {
+        console.error(err);
+        alert('读取详情失败：' + (err.message || err));
+      }
+    }
+
+    function openQuestionModal() {
+      $('questionModal').classList.add('show');
+    }
+
+    function closeQuestionModal() {
+      $('questionModal').classList.remove('show');
+      $('newQuestionText').value = '';
+      $('newQuestionTrack').value = '';
+      $('newQuestionIntent').value = '';
+      $('newQuestionPersona').value = '';
+      $('newQuestionPriority').value = 'medium';
+    }
+
+    function closeDetailModal() {
+      $('detailModal').classList.remove('show');
+    }
+
+    function bindEvents() {
+      $('apiKeyInput').value = getSavedApiKey();
+
+      $('saveApiKeyBtn').addEventListener('click', () => {
+        const v = $('apiKeyInput').value.trim();
+        setSavedApiKey(v);
+        toast(v ? 'API Key 已保存到本地' : 'API Key 已清空');
+      });
+
+      $('refreshBtn').addEventListener('click', () => refreshData());
+      $('addQuestionBtn').addEventListener('click', openQuestionModal);
+      $('saveQuestionBtn').addEventListener('click', async () => {
+        try {
+          await saveQuestion();
+        } catch (err) {
+          console.error(err);
+          alert('保存失败：' + (err.message || err));
+        }
+      });
+
+      $('batchRunBtn').addEventListener('click', runBatchAll);
+      $('stopBatchBtn').addEventListener('click', stopBatchRun);
+
+      $('searchInput').addEventListener('input', renderAll);
+      $('trackFilter').addEventListener('change', renderAll);
+      $('intentFilter').addEventListener('change', renderAll);
+
+      $('questionModal').addEventListener('click', (e) => {
+        if (e.target.id === 'questionModal') closeQuestionModal();
+      });
+
+      $('detailModal').addEventListener('click', (e) => {
+        if (e.target.id === 'detailModal') closeDetailModal();
+      });
+    }
+
+    window.runSingleQuestion = runSingleQuestion;
+    window.runQuestionAllProviders = runQuestionAllProviders;
+    window.showDetailByRunId = showDetailByRunId;
+    window.closeQuestionModal = closeQuestionModal;
+    window.closeDetailModal = closeDetailModal;
+
+    async function init() {
+      bindEvents();
+      await refreshData();
+    }
+
+    init();
+  </script>
+</body>
+</html>

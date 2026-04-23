@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>内容详情 · 投研工作台</title>
+  <title>内容详情 · 产品工作台</title>
   <link rel="stylesheet" href="shared/base.css">
   <link rel="stylesheet" href="shared/nav.css">
   <style>
@@ -401,19 +401,56 @@ let pdfRendering = false;
 /* ── 工具：Supabase Headers ── */
 function sbHeaders(extra = {}) {
   return {
-    'apikey': SUPABASE_KEY,
-    'Authorization': `Bearer ${SUPABASE_KEY}`,
+    apikey: SUPABASE_KEY,
+    Authorization: `Bearer ${SUPABASE_KEY}`,
     'Content-Type': 'application/json',
     ...extra
   };
 }
 
-/* ── 初始化：从 URL 读取 id ── */
+/* ── 工具：安全获取 DOM ── */
+function $(id) {
+  return document.getElementById(id);
+}
+
+/* ── 工具：根据表结构获取可访问文件地址 ── */
+function getPublicFileUrl(item) {
+  if (!item) return '';
+
+  const ext = (item.type || '').toLowerCase();
+
+  // link 类型：直接返回原始链接
+  if (ext === 'link') {
+    return item.original_url || '';
+  }
+
+  const raw = (item.file_path || '').trim();
+  if (!raw) return '';
+
+  // 如果 file_path 本身已经是完整 URL，直接返回
+  if (/^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+
+  // 否则按 Supabase Storage 相对路径拼接
+  return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${raw}`;
+}
+/* ── 初始化 ── */
 async function init() {
-  const params = new URLSearchParams(location.search);
-  const id = params.get('id');
-  if (!id) { showError('缺少内容 ID，请从列表页进入'); return; }
-  await loadItem(id);
+  try {
+    const params = new URLSearchParams(location.search);
+    const id = params.get('id');
+
+    if (!id) {
+      showError('缺少内容 ID，请从列表页进入');
+      return;
+    }
+
+    await loadItem(id);
+  } catch (e) {
+    console.error('init error:', e);
+    showError(e.message || '页面初始化失败');
+  }
 }
 
 /* ── 加载详情数据 ── */
@@ -423,159 +460,260 @@ async function loadItem(id) {
       `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${id}&select=*`,
       { headers: sbHeaders() }
     );
-    if (!res.ok) throw new Error(await res.text());
+
+    if (!res.ok) {
+      throw new Error(await res.text());
+    }
+
     const data = await res.json();
-    if (!data.length) throw new Error('内容不存在或已被删除');
+
+    if (!Array.isArray(data) || !data.length) {
+      throw new Error('内容不存在或已被删除');
+    }
+
     currentItem = data[0];
+    console.log('detail currentItem:', currentItem);
+
     renderDetail();
   } catch (e) {
-    showError(e.message);
+    console.error('loadItem error:', e);
+    showError(e.message || '加载详情失败');
   }
 }
 
 /* ── 渲染详情 ── */
 function renderDetail() {
-  const item = currentItem;
+  if (!currentItem) {
+    showError('未获取到内容数据');
+    return;
+  }
 
-  // 面包屑 & Header
-  document.title = `${item.title || '详情'} · 投研工作台`;
-  document.getElementById('crumb-title').textContent = item.title || '未命名';
-  document.getElementById('header-actions').style.display = 'flex';
+  const item = currentItem;
+  const ext = (item.type || '').toLowerCase();
+  const fileUrl = getPublicFileUrl(item);
+
+  // 标题
+  document.title = `${item.title || '详情'} · 产品工作台`;
+
+  const crumbTitle = $('crumb-title');
+  if (crumbTitle) crumbTitle.textContent = item.title || '未命名';
+
+  const headerActions = $('header-actions');
+  if (headerActions) headerActions.style.display = 'flex';
 
   // 基本信息
-  const ext  = (item.type || '').toLowerCase();
   const rows = [
     { key: '标题', val: escHtml(item.title || '未命名') },
-    { key: '类型', val: `<span class="badge badge-info">${ext.toUpperCase()}</span>` },
+    { key: '类型', val: `<span class="badge badge-info">${escHtml(ext.toUpperCase() || '—')}</span>` },
     { key: '时间', val: formatDate(item.created_at) },
+    { key: '作者', val: escHtml(item.author || '—') },
     {
       key: '链接',
-      val: item.file_url
-        ? `<a href="${escHtml(item.file_url)}" target="_blank" title="${escHtml(item.file_url)}">
-             ${item.type === 'link' ? escHtml(item.file_url) : '点击打开文件'}
+      val: fileUrl
+        ? `<a href="${escHtml(fileUrl)}" target="_blank" title="${escHtml(fileUrl)}">
+             ${ext === 'link' ? escHtml(fileUrl) : '点击打开文件'}
            </a>`
         : '—'
-    },
+    }
   ];
-  document.getElementById('meta-rows').innerHTML = rows.map(r => `
-    <div class="meta-row">
-      <span class="meta-key">${r.key}</span>
-      <span class="meta-val">${r.val}</span>
-    </div>
-  `).join('');
 
-  // 摘要
-  document.getElementById('summary-edit').value = item.summary || '';
+  const metaRows = $('meta-rows');
+  if (metaRows) {
+    metaRows.innerHTML = rows.map(r => `
+      <div class="meta-row">
+        <span class="meta-key">${r.key}</span>
+        <span class="meta-val">${r.val}</span>
+      </div>
+    `).join('');
+  }
 
-  // 预览区
+  const summaryEdit = $('summary-edit');
+  if (summaryEdit) summaryEdit.value = item.summary || '';
+
   renderPreview(item);
 
-  // 切换显示
-  document.getElementById('skeleton').style.display    = 'none';
-  document.getElementById('detail-body').style.display = 'flex';
+  const skeleton = $('skeleton');
+  const detailBody = $('detail-body');
+  const errorState = $('error-state');
+
+  if (skeleton) skeleton.style.display = 'none';
+  if (detailBody) detailBody.style.display = 'flex';
+  if (errorState) errorState.style.display = 'none';
 }
 
 /* ── 渲染预览区 ── */
 function renderPreview(item) {
-  const body  = document.getElementById('preview-body');
-  const label = document.getElementById('preview-label');
-  const ext   = (item.type || '').toLowerCase();
+  const body  = $('preview-body');
+  const label = $('preview-label');
+  const pdfCtrl = $('pdf-ctrl');
 
-  label.textContent = item.title || '文件预览';
+  if (!body) {
+    console.warn('preview-body not found');
+    return;
+  }
+
+  const ext = (item.type || '').toLowerCase();
+  const fileUrl = getPublicFileUrl(item);
+
+  if (label) label.textContent = item.title || '文件预览';
 
   if (ext === 'pdf') {
-    // PDF.js 渲染
-    document.getElementById('pdf-ctrl').style.display = 'flex';
-    body.innerHTML = '<div class="pdf-canvas-wrap" id="pdf-canvas-wrap"></div>';
-    loadPDF(item.file_url);
+    if (!fileUrl) {
+      if (pdfCtrl) pdfCtrl.style.display = 'none';
+      body.innerHTML = `
+        <div class="preview-placeholder">
+          <div class="ph-icon">⚠️</div>
+          <p>该 PDF 缺少文件地址，无法预览</p>
+        </div>`;
+      return;
+    }
 
-  } else if (['doc','docx'].includes(ext)) {
-    // Word：先用 mammoth 转 HTML 再 iframe 渲染
+    if (pdfCtrl) pdfCtrl.style.display = 'flex';
+    body.innerHTML = `<div class="pdf-canvas-wrap" id="pdf-canvas-wrap"></div>`;
+    loadPDF(fileUrl);
+    return;
+  }
+
+  if (['doc', 'docx'].includes(ext)) {
+    if (pdfCtrl) pdfCtrl.style.display = 'none';
+
+    if (!fileUrl) {
+      body.innerHTML = `
+        <div class="preview-placeholder">
+          <div class="ph-icon">⚠️</div>
+          <p>该 Word 文件缺少文件地址，无法预览</p>
+        </div>`;
+      return;
+    }
+
     body.innerHTML = `
       <div class="preview-placeholder">
         <div class="ph-icon">📝</div>
         <p>Word 文件预览加载中…</p>
       </div>`;
-    loadWordPreview(item.file_url, body);
+    loadWordPreview(fileUrl, body);
+    return;
+  }
 
-  } else if (ext === 'link') {
-    // 链接：尝试 iframe 嵌入
+  if (ext === 'link') {
+    if (pdfCtrl) pdfCtrl.style.display = 'none';
+
+    if (!fileUrl) {
+      body.innerHTML = `
+        <div class="preview-placeholder">
+          <div class="ph-icon">⚠️</div>
+          <p>该链接缺失，无法预览</p>
+        </div>`;
+      return;
+    }
+
     body.innerHTML = `
-      <iframe src="${escHtml(item.file_url)}"
+      <iframe src="${escHtml(fileUrl)}"
               sandbox="allow-scripts allow-same-origin allow-popups"
               title="链接预览">
       </iframe>`;
+    return;
+  }
 
-  } else {
-    // PPT 等暂不支持预览
-    body.innerHTML = `
-      <div class="preview-placeholder">
-        <div class="ph-icon">${fileTypeIcon(ext)}</div>
-        <p>${ext.toUpperCase()} 暂不支持在线预览</p>
-        <a href="${escHtml(item.file_url)}" target="_blank"
+  // 其他文件类型
+  if (pdfCtrl) pdfCtrl.style.display = 'none';
+  body.innerHTML = `
+    <div class="preview-placeholder">
+      <div class="ph-icon">${fileTypeIcon(ext)}</div>
+      <p>${escHtml(ext.toUpperCase() || '该文件')} 暂不支持在线预览</p>
+      ${fileUrl ? `
+        <a href="${escHtml(fileUrl)}" target="_blank"
            class="btn btn-outline" style="margin-top:var(--space-md)">
           ↗ 下载 / 新窗口打开
         </a>
-      </div>`;
-  }
+      ` : ''}
+    </div>`;
 }
 
 /* ── PDF.js 渲染 ── */
 async function loadPDF(url) {
   try {
+    if (!url || typeof url !== 'string') {
+      throw new Error('文件 URL 为空或无效');
+    }
+
     const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    if (!pdfjsLib) {
+      throw new Error('pdf.js 未正确加载');
+    }
+
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
-    pdfDoc     = await pdfjsLib.getDocument(url).promise;
+    pdfDoc = await pdfjsLib.getDocument({ url }).promise;
     pdfPageNum = 1;
 
-    const totalEl = document.getElementById('pdf-total-pages');
+    const totalEl = $('pdf-total-pages');
     if (totalEl) totalEl.textContent = `/ ${pdfDoc.numPages}`;
 
     await renderPDFPage(pdfPageNum);
   } catch (e) {
-    document.getElementById('preview-body').innerHTML = `
-      <div class="preview-placeholder">
-        <div class="ph-icon">⚠️</div>
-        <p>PDF 加载失败：${e.message}</p>
-        <a href="${currentItem?.file_url}" target="_blank"
-           class="btn btn-outline" style="margin-top:var(--space-md)">
-          ↗ 直接打开
-        </a>
-      </div>`;
+    console.error('loadPDF error:', e);
+
+    const previewBody = $('preview-body');
+    const pdfCtrl = $('pdf-ctrl');
+    const publicUrl = getPublicFileUrl(currentItem);
+
+    if (pdfCtrl) pdfCtrl.style.display = 'none';
+
+    if (previewBody) {
+      previewBody.innerHTML = `
+        <div class="preview-placeholder">
+          <div class="ph-icon">⚠️</div>
+          <p>PDF 加载失败：${escHtml(e.message || '未知错误')}</p>
+          ${publicUrl ? `
+            <a href="${escHtml(publicUrl)}" target="_blank"
+               class="btn btn-outline" style="margin-top:var(--space-md)">
+              ↗ 直接打开
+            </a>
+          ` : ''}
+        </div>`;
+    }
   }
 }
 
 async function renderPDFPage(num) {
   if (!pdfDoc || pdfRendering) return;
-  pdfRendering = true;
 
-  const wrap = document.getElementById('pdf-canvas-wrap');
+  const wrap = $('pdf-canvas-wrap');
   if (!wrap) return;
 
-  // 清除旧内容
-  wrap.innerHTML = '';
+  pdfRendering = true;
 
-  // 渲染当前页及前后共 3 页（提升体验）
-  const start = Math.max(1, num);
-  const end   = Math.min(pdfDoc.numPages, num + 2);
+  try {
+    wrap.innerHTML = '';
 
-  for (let i = start; i <= end; i++) {
-    const page    = await pdfDoc.getPage(i);
-    const vp      = page.getViewport({ scale: 1.5 });
-    const canvas  = document.createElement('canvas');
-    canvas.width  = vp.width;
-    canvas.height = vp.height;
-    wrap.appendChild(canvas);
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+    const start = Math.max(1, num);
+    const end = Math.min(pdfDoc.numPages, num + 2);
+
+    for (let i = start; i <= end; i++) {
+      const page = await pdfDoc.getPage(i);
+      const viewport = page.getViewport({ scale: 1.5 });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      wrap.appendChild(canvas);
+
+      const ctx = canvas.getContext('2d');
+      await page.render({
+        canvasContext: ctx,
+        viewport
+      }).promise;
+    }
+
+    const input = $('pdf-page-input');
+    if (input) input.value = num;
+  } catch (e) {
+    console.error('renderPDFPage error:', e);
+  } finally {
+    pdfRendering = false;
   }
-
-  // 更新页码输入
-  const input = document.getElementById('pdf-page-input');
-  if (input) input.value = num;
-
-  pdfRendering = false;
 }
 
 function pdfPrevPage() {
@@ -583,72 +721,101 @@ function pdfPrevPage() {
   pdfPageNum--;
   renderPDFPage(pdfPageNum);
 }
+
 function pdfNextPage() {
   if (!pdfDoc || pdfPageNum >= pdfDoc.numPages) return;
   pdfPageNum++;
   renderPDFPage(pdfPageNum);
 }
+
 function pdfGoPage(val) {
-  const n = parseInt(val);
-  if (!pdfDoc || isNaN(n)) return;
+  const n = parseInt(val, 10);
+  if (!pdfDoc || Number.isNaN(n)) return;
   pdfPageNum = Math.max(1, Math.min(pdfDoc.numPages, n));
   renderPDFPage(pdfPageNum);
 }
 
-/* ── Word 预览（mammoth → HTML → srcdoc iframe）── */
+/* ── Word 预览 ── */
 async function loadWordPreview(url, container) {
   try {
     const response = await fetch(url);
-    const buffer   = await response.arrayBuffer();
-    const result   = await mammoth.convertToHtml({ arrayBuffer: buffer });
+    if (!response.ok) throw new Error('获取 Word 文件失败');
+
+    const buffer = await response.arrayBuffer();
+    const result = await mammoth.convertToHtml({ arrayBuffer: buffer });
+
     container.innerHTML = `
-      <iframe srcdoc="${escAttr(wrapWordHtml(result.value))}"
-              style="width:100%;height:100%;border:none;background:#fff">
+      <iframe
+        srcdoc="${escAttr(wrapWordHtml(result.value))}"
+        style="width:100%;height:100%;border:none;background:#fff">
       </iframe>`;
   } catch (e) {
+    console.error('loadWordPreview error:', e);
     container.innerHTML = `
       <div class="preview-placeholder">
         <div class="ph-icon">📝</div>
-        <p>Word 预览失败：${e.message}</p>
+        <p>Word 预览失败：${escHtml(e.message || '未知错误')}</p>
         <a href="${escHtml(url)}" target="_blank"
-           class="btn btn-outline" style="margin-top:var(--space-md)">↗ 下载文件</a>
+           class="btn btn-outline" style="margin-top:var(--space-md)">
+          ↗ 下载文件
+        </a>
       </div>`;
   }
 }
 
 function wrapWordHtml(body) {
-  return `<!DOCTYPE html><html><head>
-    <meta charset="UTF-8">
-    <style>
-      body{font-family:'Microsoft YaHei',Arial,sans-serif;font-size:14px;
-           line-height:1.8;padding:24px 32px;color:#222;max-width:860px;margin:0 auto}
-      h1,h2,h3{font-weight:600;margin:1em 0 0.5em}
-      p{margin:0 0 0.8em}
-      table{border-collapse:collapse;width:100%;margin:1em 0}
-      td,th{border:1px solid #ddd;padding:8px 12px}
-      th{background:#f5f5f5}
-      img{max-width:100%}
-    </style>
-  </head><body>${body}</body></html>`;
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body{
+      font-family:'Microsoft YaHei',Arial,sans-serif;
+      font-size:14px;
+      line-height:1.8;
+      padding:24px 32px;
+      color:#222;
+      max-width:860px;
+      margin:0 auto;
+      background:#fff;
+    }
+    h1,h2,h3{font-weight:600;margin:1em 0 0.5em}
+    p{margin:0 0 0.8em}
+    table{border-collapse:collapse;width:100%;margin:1em 0}
+    td,th{border:1px solid #ddd;padding:8px 12px}
+    th{background:#f5f5f5}
+    img{max-width:100%}
+  </style>
+</head>
+<body>${body || ''}</body>
+</html>`;
 }
 
 /* ── 保存摘要 ── */
 async function saveSummary() {
   if (!currentItem) return;
-  const summary = document.getElementById('summary-edit').value.trim();
+
+  const summaryEdit = $('summary-edit');
+  const summary = summaryEdit ? summaryEdit.value.trim() : '';
+
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${currentItem.id}`,
       {
         method: 'PATCH',
-        headers: sbHeaders({ 'Prefer': 'return=minimal' }),
+        headers: sbHeaders({ Prefer: 'return=minimal' }),
         body: JSON.stringify({ summary })
       }
     );
-    if (!res.ok) throw new Error(await res.text());
+
+    if (!res.ok) {
+      throw new Error(await res.text());
+    }
+
     currentItem.summary = summary;
     showToast('摘要已保存 ✓', 'success');
   } catch (e) {
+    console.error('saveSummary error:', e);
     showToast('保存失败：' + e.message, 'error');
   }
 }
@@ -657,26 +824,37 @@ async function saveSummary() {
 async function reGenSummary() {
   if (!currentItem) return;
 
-  const streamBox  = document.getElementById('ai-stream-box');
-  const editBox    = document.getElementById('summary-edit');
+  const streamBox = $('ai-stream-box');
+  const editBox = $('summary-edit');
+  const fileUrl = getPublicFileUrl(currentItem);
+
+  if (!streamBox || !editBox) {
+    showToast('摘要区域未找到', 'error');
+    return;
+  }
 
   streamBox.textContent = '';
   streamBox.classList.add('active');
   editBox.style.display = 'none';
 
   let text = '';
+
   try {
     const ext = (currentItem.type || '').toLowerCase();
+
     if (ext === 'pdf') {
-      text = await fetchAndExtractPDF(currentItem.file_url);
-    } else if (['doc','docx'].includes(ext)) {
-      text = await fetchAndExtractWord(currentItem.file_url);
+      if (!fileUrl) throw new Error('PDF 文件地址缺失');
+      text = await fetchAndExtractPDF(fileUrl);
+    } else if (['doc', 'docx'].includes(ext)) {
+      if (!fileUrl) throw new Error('Word 文件地址缺失');
+      text = await fetchAndExtractWord(fileUrl);
     } else if (ext === 'link') {
-      text = `链接：${currentItem.file_url}\n标题：${currentItem.title}`;
+      text = `链接：${currentItem.original_url || ''}\n标题：${currentItem.title || ''}`;
     } else {
-      text = `文件名：${currentItem.title}`;
+      text = `文件名：${currentItem.title || ''}`;
     }
   } catch (e) {
+    console.error('extract content error:', e);
     showToast('内容提取失败：' + e.message, 'error');
     streamBox.classList.remove('active');
     editBox.style.display = '';
@@ -685,140 +863,241 @@ async function reGenSummary() {
 
   try {
     const cfg = getAIConfig();
+
     const res = await fetch(`${cfg.url}/chat/completions`, {
       method: 'POST',
-      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${cfg.key}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cfg.key}`
+      },
       body: JSON.stringify({
         model: cfg.model,
         stream: true,
         messages: [
-          { role:'system', content:'你是专业的投研助手，请对以下内容生成简洁专业的中文摘要（150字以内），突出核心观点。' },
-          { role:'user', content: text.slice(0, 3000) }
+          {
+            role: 'system',
+            content: '你是专业的产品助手，请对以下内容生成简洁专业的中文摘要（150字以内），突出核心观点。'
+          },
+          {
+            role: 'user',
+            content: text.slice(0, 3000)
+          }
         ]
       })
     });
-    if (!res.ok) throw new Error(await res.text());
 
-    const reader  = res.body.getReader();
+    if (!res.ok) {
+      throw new Error(await res.text());
+    }
+
+    const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let result    = '';
+    let result = '';
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+
       decoder.decode(value).split('\n').forEach(line => {
         if (!line.startsWith('data:')) return;
         const raw = line.slice(5).trim();
         if (raw === '[DONE]') return;
+
         try {
           const delta = JSON.parse(raw).choices?.[0]?.delta?.content || '';
           result += delta;
           streamBox.textContent = result;
-        } catch {}
+        } catch (err) {
+          console.warn('stream parse error:', err);
+        }
       });
     }
 
-    // 流式完成 → 写入编辑框
     editBox.value = result;
     streamBox.classList.remove('active');
     editBox.style.display = '';
     showToast('摘要生成完成，请确认后保存', 'info');
-
   } catch (e) {
+    console.error('reGenSummary error:', e);
     showToast('生成失败：' + e.message, 'error');
     streamBox.classList.remove('active');
     editBox.style.display = '';
   }
 }
 
-/* ── 远程获取并提取 PDF 文本 ── */
+/* ── 提取 PDF 文本 ── */
 async function fetchAndExtractPDF(url) {
   const pdfjsLib = window['pdfjs-dist/build/pdf'];
+  if (!pdfjsLib) throw new Error('pdf.js 未加载');
+
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-  const pdf  = await pdfjsLib.getDocument(url).promise;
-  let   text = '';
+
+  const pdf = await pdfjsLib.getDocument({ url }).promise;
+  let text = '';
+
   for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
-    const page    = await pdf.getPage(i);
+    const page = await pdf.getPage(i);
     const content = await page.getTextContent();
     text += content.items.map(s => s.str).join(' ') + '\n';
   }
+
   return text;
 }
 
-/* ── 远程获取并提取 Word 文本 ── */
+/* ── 提取 Word 文本 ── */
 async function fetchAndExtractWord(url) {
   const response = await fetch(url);
-  const buffer   = await response.arrayBuffer();
-  const result   = await mammoth.extractRawText({ arrayBuffer: buffer });
-  return result.value;
+  if (!response.ok) throw new Error('获取 Word 文件失败');
+
+  const buffer = await response.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+  return result.value || '';
 }
 
 /* ── 新窗口打开 ── */
 function openNewTab() {
-  if (currentItem?.file_url) window.open(currentItem.file_url, '_blank');
+  const fileUrl = getPublicFileUrl(currentItem);
+  if (!fileUrl) {
+    showToast('未找到可打开的文件地址', 'error');
+    return;
+  }
+  window.open(fileUrl, '_blank');
 }
 
 /* ── 删除弹窗 ── */
 function openDeleteModal() {
   if (!currentItem) return;
-  document.getElementById('delete-name').textContent = currentItem.title || '该内容';
-  document.getElementById('delete-modal').classList.add('open');
+
+  const deleteName = $('delete-name');
+  if (deleteName) deleteName.textContent = currentItem.title || '该内容';
+
+  const modal = $('delete-modal');
+  if (modal) modal.classList.add('open');
 }
+
 function closeDeleteModal() {
-  document.getElementById('delete-modal').classList.remove('open');
+  const modal = $('delete-modal');
+  if (modal) modal.classList.remove('open');
 }
+
+function getStorageObjectPath(item) {
+  if (!item) return '';
+
+  const raw = (item.file_path || '').trim();
+  if (!raw) return '';
+
+  // 如果本来就是相对路径，直接返回
+  if (!/^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+
+  // 如果是完整 public URL，则提取 bucket 后面的对象路径
+  const marker = `/storage/v1/object/public/${SUPABASE_BUCKET}/`;
+  const idx = raw.indexOf(marker);
+  if (idx >= 0) {
+    return raw.slice(idx + marker.length);
+  }
+
+  return '';
+}
+
 async function confirmDelete() {
   if (!currentItem) return;
+
   try {
-    // 删除 Storage 文件
-    if (currentItem.type !== 'link' && currentItem.file_url) {
-      const path = currentItem.file_url.split(`/object/public/${SUPABASE_BUCKET}/`)[1];
-      if (path) {
-        await fetch(
-          `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${path}`,
-          { method: 'DELETE', headers: sbHeaders() }
+    // 删除 storage 文件（非 link）
+    if ((currentItem.type || '').toLowerCase() !== 'link') {
+      const objectPath = getStorageObjectPath(currentItem);
+
+      if (objectPath) {
+        const storageRes = await fetch(
+          `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${objectPath}`,
+          {
+            method: 'DELETE',
+            headers: {
+              apikey: SUPABASE_KEY,
+              Authorization: `Bearer ${SUPABASE_KEY}`
+            }
+          }
         );
+
+        if (!storageRes.ok) {
+          console.warn('storage delete failed:', await storageRes.text());
+        }
       }
     }
-    // 删除数据库记录
+
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${currentItem.id}`,
-      { method: 'DELETE', headers: sbHeaders() }
+      {
+        method: 'DELETE',
+        headers: sbHeaders()
+      }
     );
+
     if (!res.ok) throw new Error(await res.text());
+
     showToast('删除成功，即将返回列表', 'success');
-    setTimeout(() => { location.href = 'index.html'; }, 1200);
+    setTimeout(() => {
+      location.href = 'index.html';
+    }, 1200);
   } catch (e) {
+    console.error('confirmDelete error:', e);
     showToast('删除失败：' + e.message, 'error');
   }
 }
 
 /* ── 错误状态 ── */
 function showError(msg) {
-  document.getElementById('skeleton').style.display    = 'none';
-  document.getElementById('detail-body').style.display = 'none';
-  document.getElementById('error-msg').textContent     = msg;
-  document.getElementById('error-state').style.display = 'flex';
+  console.error('showError:', msg);
+
+  const skeleton = $('skeleton');
+  const detailBody = $('detail-body');
+  const errorMsg = $('error-msg');
+  const errorState = $('error-state');
+
+  if (skeleton) skeleton.style.display = 'none';
+  if (detailBody) detailBody.style.display = 'none';
+  if (errorMsg) errorMsg.textContent = msg || '加载失败';
+  if (errorState) errorState.style.display = 'flex';
 }
 
 /* ── 工具函数 ── */
 function fileTypeIcon(type) {
-  const map = { pdf:'📄', ppt:'📊', pptx:'📊', doc:'📝', docx:'📝', link:'🔗' };
-  return map[(type||'').toLowerCase()] || '📁';
+  const map = {
+    pdf: '📄',
+    ppt: '📊',
+    pptx: '📊',
+    doc: '📝',
+    docx: '📝',
+    link: '🔗'
+  };
+  return map[(type || '').toLowerCase()] || '📁';
 }
+
 function formatDate(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  if (Number.isNaN(d.getTime())) return '—';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
 function escHtml(str) {
-  return String(str||'')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
+
 function escAttr(str) {
-  return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 /* ── 点击遮罩关闭弹窗 ── */

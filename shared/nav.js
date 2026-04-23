@@ -1,5 +1,5 @@
 /* ============================================================
-   投研工作台 · 导航逻辑
+   产品工作台 · 导航逻辑
    shared/nav.js
    ============================================================ */
 
@@ -21,7 +21,7 @@ function renderNav() {
       <!-- Logo -->
       <div class="sidebar-logo">
         <div class="logo-icon">📊</div>
-        <span class="logo-text">投研工作台</span>
+        <span class="logo-text">产品工作台</span>
         <span class="logo-version">v1.0</span>
       </div>
 
@@ -52,6 +52,12 @@ function renderNav() {
           <span class="nav-badge" id="nav-app-badge" style="display:none">NEW</span>
         </a>
 
+        <a href="geo.html"
+           class="nav-item ${current === 'geo.html' ? 'active' : ''}"
+            id="nav-geo">
+          <span class="nav-icon">🌐</span>
+          <span class="nav-label">GEO监测</span>
+        </a>
       </nav>
 
       <!-- 底部 -->

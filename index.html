@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>晨会分享 · 投研工作台</title>
+  <title>晨会分享 · 产品工作台</title>
   <link rel="stylesheet" href="shared/base.css">
   <link rel="stylesheet" href="shared/nav.css">
   <style>
@@ -395,6 +395,8 @@
         <div class="form-group" style="margin-top:var(--space-md)">
           <label class="form-label">标题（选填，留空则用文件名）</label>
           <input class="input" id="file-title" placeholder="自定义显示标题…">
+           <label class="form-label">作者</label>
+        <input class="input" id="author-input" placeholder="请输入分享人/作者名称…">
         </div>
       </div>
 
@@ -642,6 +644,7 @@ function resetUploadModal() {
   document.getElementById('file-title').value = '';
   document.getElementById('link-url').value   = '';
   document.getElementById('link-title').value = '';
+  document.getElementById('author-input').value = '';
   document.getElementById('ai-summary').textContent = 'AI 生成摘要后可在此手动编辑…';
   document.getElementById('upload-progress-wrap').style.display = 'none';
   document.getElementById('upload-progress-bar').style.width = '0%';
@@ -735,7 +738,7 @@ async function generateAISummary() {
         model: cfg.model,
         stream: true,
         messages: [
-          { role: 'system', content: '你是一个专业的投研助手，请对以下内容生成一段简洁、专业的中文摘要（150字以内），突出核心观点。' },
+          { role: 'system', content: '你是一个专业的产品经理助手，请对以下内容生成一段简洁、专业的中文摘要（150字以内），突出核心观点。' },
           { role: 'user', content: text.slice(0, 3000) }
         ]
       })
@@ -814,52 +817,145 @@ async function submitUpload() {
   btn.textContent = '提交中…';
 
   try {
-    let fileUrl  = '';
-    let title    = '';
-    let fileType = '';
+    let originalUrl = '';
+    let filePath    = '';
+    let coverUrl    = '';
+    let title       = '';
+    let fileType    = '';
+    const author    = document.getElementById('author-input').value.trim();
 
     if (uploadTab === 'link') {
-      fileUrl  = document.getElementById('link-url').value.trim();
-      title    = document.getElementById('link-title').value.trim();
-      fileType = 'link';
-      if (!fileUrl) throw new Error('请填写链接地址');
-      if (!title)   throw new Error('请填写标题');
+      originalUrl = document.getElementById('link-url').value.trim();
+      title       = document.getElementById('link-title').value.trim();
+      fileType    = 'link';
+
+      if (!originalUrl) throw new Error('请填写链接地址');
+      if (!title) throw new Error('请填写标题');
     } else {
       if (!selectedFile) throw new Error('请选择文件');
+
       title    = document.getElementById('file-title').value.trim() || selectedFile.name;
       fileType = selectedFile.name.split('.').pop().toLowerCase();
 
-      // 上传到 Supabase Storage
-      fileUrl = await uploadFileToStorage(selectedFile);
+      // 1. 上传原文件
+      filePath = await uploadFileToStorage(selectedFile);
+
+      // 2. 生成并上传缩略图（仅 PDF）
+      try {
+        coverUrl = await generateAndUploadCover(selectedFile);
+      } catch (coverErr) {
+        console.warn('封面生成失败，不影响主流程：', coverErr);
+      }
     }
 
     const summary = document.getElementById('ai-summary').textContent.trim();
 
-    // 写入 shares 表
+    const payload = {
+      title,
+      type: fileType,
+      author: author || null,
+      summary: summary === 'AI 生成摘要后可在此手动编辑…' ? '' : summary,
+      original_filename: selectedFile ? selectedFile.name : null,
+      original_url: originalUrl || null,
+      file_path: filePath || null,
+      cover_url: coverUrl || null,
+      parse_status: 'done'
+    };
+
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}`,
       {
         method: 'POST',
         headers: sbHeaders({ 'Prefer': 'return=representation' }),
-        body: JSON.stringify({
-          title,
-          summary: summary === 'AI 生成摘要后可在此手动编辑…' ? '' : summary,
-          file_url: fileUrl,
-          type: fileType,
-        })
+        body: JSON.stringify(payload)
       }
     );
+
     if (!res.ok) throw new Error(await res.text());
+
+    if (author) {
+      localStorage.setItem('share_author', author);
+    }
 
     showToast('上传成功 🎉', 'success');
     closeUploadModal();
     loadList();
   } catch (e) {
+    console.error('submitUpload error:', e);
     showToast('提交失败：' + e.message, 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = '📤 提交';
   }
+}
+
+function getPublicStorageUrl(path) {
+  return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${path}`;
+}
+
+async function uploadBlobToStorage(blob, path, contentType = 'application/octet-stream') {
+  const res = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${path}`,
+    {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': contentType,
+      },
+      body: blob
+    }
+  );
+
+  if (!res.ok) throw new Error(await res.text());
+  return getPublicStorageUrl(path);
+}
+
+async function generatePdfCover(file) {
+  const pdfjsLib = window['pdfjs-dist/build/pdf'];
+  if (!pdfjsLib) throw new Error('pdf.js 未加载');
+
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const page = await pdf.getPage(1);
+
+  const viewport = page.getViewport({ scale: 1.2 });
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+
+  await page.render({
+    canvasContext: ctx,
+    viewport
+  }).promise;
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (!blob) {
+        reject(new Error('生成 PDF 缩略图失败'));
+        return;
+      }
+      resolve(blob);
+    }, 'image/png', 0.92);
+  });
+}
+
+async function generateAndUploadCover(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  // 目前先支持 PDF 缩略图
+  if (ext !== 'pdf') return '';
+
+  const coverBlob = await generatePdfCover(file);
+  const coverPath = `shares/covers/${Date.now()}_${Math.random().toString(36).slice(2)}.png`;
+  const coverUrl = await uploadBlobToStorage(coverBlob, coverPath, 'image/png');
+
+  return coverUrl;
 }
 
 /* ── 上传文件到 Supabase Storage ────────────────────────────── */
@@ -868,7 +964,6 @@ async function uploadFileToStorage(file) {
   const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
   const path     = `shares/${fileName}`;
 
-  // 显示进度条
   const wrap = document.getElementById('upload-progress-wrap');
   const bar  = document.getElementById('upload-progress-bar');
   wrap.style.display = 'block';
@@ -886,12 +981,13 @@ async function uploadFileToStorage(file) {
       body: file
     }
   );
+
   bar.style.width = '80%';
+
   if (!res.ok) throw new Error(await res.text());
 
   bar.style.width = '100%';
-  // 返回公开 URL
-  return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${path}`;
+  return path;
 }
 
 /* ── 删除弹窗 ────────────────────────────────────────────────── */
