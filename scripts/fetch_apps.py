@@ -18,6 +18,8 @@ APPS = [
     {"app_id": "714814035",  "app_name": "嘉实理财嘉",  "company": "嘉实基金"},
     {"app_id": "862981607",  "app_name": "招商基金",    "company": "招商基金"},
     {"app_id": "672198904",  "app_name": "博时基金",    "company": "博时基金"},
+    {"app_id": "1484459002",  "app_name": "中欧财富",    "company": "中欧基金"},
+    
     # 主流基金投资平台
     {"app_id": "1104871195", "app_name": "且慢",        "company": "且慢"},
     {"app_id": "6511224711", "app_name": "涨乐",        "company": "华泰证券"},
