@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>来源归因分析</title>
+
+  <link rel="stylesheet" href="./shared/base.css" />
+  <link rel="stylesheet" href="./shared/nav.css" />
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="./shared/config.js"></script>
+  <script src="./shared/nav.js"></script>
+
+  <style>
+    .source-page {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .source-toolbar,
+    .source-card,
+    .source-modal-card {
+      background: rgba(16, 24, 48, 0.92);
+      border: 1px solid rgba(120, 160, 255, 0.22);
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+    }
+
+    .source-toolbar {
+      padding: 16px;
+    }
+
+    .source-toolbar-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .source-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 180px;
+      flex: 1;
+    }
+
+    .source-field.small {
+      min-width: 140px;
+      flex: 0 0 160px;
+    }
+
+    .source-label {
+      font-size: 12px;
+      color: #b8c7df;
+    }
+
+    .source-input,
+    .source-select {
+      width: 100%;
+      border: 1px solid rgba(120, 160, 255, 0.24);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.2s ease;
+      background: rgba(255, 255, 255, 0.04);
+      color: #e6edf8;
+      box-sizing: border-box;
+    }
+
+    .source-input::placeholder {
+      color: #8fa3c2;
+      opacity: 1;
+    }
+
+    .source-select option {
+      background: #0f172a;
+      color: #e6edf8;
+    }
+
+    .source-input:focus,
+    .source-select:focus {
+      border-color: #4f8ef7;
+      box-shadow: 0 0 0 3px rgba(79, 142, 247, 0.12);
+    }
+
+    .source-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .source-btn {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .source-btn.primary {
+      background: linear-gradient(135deg, #4f8ef7 0%, #3b82f6 100%);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(79, 142, 247, 0.28);
+    }
+
+    .source-btn.primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(79, 142, 247, 0.35);
+    }
+
+    .source-btn.secondary {
+      background: rgba(79, 142, 247, 0.08);
+      color: #93c5fd;
+      border: 1px solid rgba(79, 142, 247, 0.24);
+    }
+
+    .source-btn.secondary:hover {
+      background: rgba(79, 142, 247, 0.14);
+    }
+
+    .source-tip {
+      font-size: 12px;
+      color: #a8b8d3;
+    }
+
+    .source-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .source-card {
+      padding: 16px;
+    }
+
+    .source-stat-title {
+      font-size: 13px;
+      color: #b8c7df;
+      margin-bottom: 8px;
+    }
+
+    .source-stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #e8eef8;
+      line-height: 1.2;
+    }
+
+    .source-stat-sub {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #a8b8d3;
+    }
+
+    .source-section-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #e8eef8;
+      margin-bottom: 12px;
+    }
+
+    .source-chart-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 12px;
+    }
+
+    .source-chart-card {
+      min-height: 360px;
+    }
+
+    .source-chart-wrap {
+      position: relative;
+      height: 300px;
+    }
+
+    .source-table-wrap {
+      overflow: auto;
+      background: rgba(16, 24, 48, 0.92);
+      border: 1px solid rgba(120, 160, 255, 0.22);
+      border-radius: 16px;
+    }
+
+    .source-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1280px;
+    }
+
+    .source-table th,
+    .source-table td {
+      border-bottom: 1px solid rgba(120, 160, 255, 0.08);
+      padding: 12px;
+      font-size: 14px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .source-table th {
+      background: rgba(10, 16, 36, 0.96);
+      color: #b8c7df;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .source-table td {
+      color: #dbe7f5;
+    }
+
+    .source-table tr:hover td {
+      background: rgba(79, 142, 247, 0.04);
+    }
+
+    .source-question {
+      font-weight: 600;
+      color: #e8eef8;
+      line-height: 1.5;
+    }
+
+    .source-subtext {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #a8b8d3;
+      line-height: 1.5;
+    }
+
+    .source-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1;
+      border: 1px solid transparent;
+      margin-right: 6px;
+      margin-bottom: 6px;
+      white-space: nowrap;
+    }
+
+    .source-badge.blue {
+      background: rgba(79, 142, 247, 0.12);
+      color: #93c5fd;
+      border-color: rgba(79, 142, 247, 0.3);
+    }
+
+    .source-badge.green {
+      background: rgba(16, 185, 129, 0.12);
+      color: #6ee7b7;
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .source-badge.yellow {
+      background: rgba(245, 158, 11, 0.12);
+      color: #fcd34d;
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+
+    .source-badge.gray {
+      background: rgba(148, 163, 184, 0.12);
+      color: #cbd5e1;
+      border-color: rgba(148, 163, 184, 0.22);
+    }
+
+    .source-badge.purple {
+      background: rgba(168, 85, 247, 0.12);
+      color: #d8b4fe;
+      border-color: rgba(168, 85, 247, 0.3);
+    }
+
+    .source-link-btn {
+      background: none;
+      border: none;
+      color: #60a5fa;
+      cursor: pointer;
+      padding: 0;
+      font-size: 13px;
+    }
+
+    .source-link-btn:hover {
+      text-decoration: underline;
+      color: #93c5fd;
+    }
+
+    .source-empty {
+      padding: 30px 16px;
+      text-align: center;
+      color: #a8b8d3;
+      font-size: 14px;
+    }
+
+    .source-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 8, 20, 0.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 2000;
+    }
+
+    .source-modal.show {
+      display: flex;
+    }
+
+    .source-modal-card {
+      width: min(980px, 100%);
+      max-height: 88vh;
+      overflow: auto;
+      padding: 18px;
+    }
+
+    .source-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .source-modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #e8eef8;
+    }
+
+    .source-detail-block {
+      border: 1px solid rgba(120, 160, 255, 0.14);
+      border-radius: 14px;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.03);
+      margin-bottom: 12px;
+    }
+
+    .source-detail-label {
+      font-size: 12px;
+      color: #b8c7df;
+      margin-bottom: 6px;
+    }
+
+    .source-detail-content {
+      font-size: 14px;
+      color: #e8eef8;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .source-source-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .source-source-item {
+      border: 1px solid rgba(120, 160, 255, 0.14);
+      border-radius: 12px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .source-source-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .source-source-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #e8eef8;
+    }
+
+    .source-source-meta {
+      font-size: 12px;
+      color: #a8b8d3;
+    }
+
+    @media (max-width: 1200px) {
+      .source-stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .source-chart-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .source-stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .source-field,
+      .source-field.small {
+        min-width: 100%;
+        flex: 1 1 100%;
+      }
+
+      .source-btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div id="nav-placeholder"></div>
+
+    <main class="main">
+      <header class="header">
+        <div>
+          <h1>来源归因分析</h1>
+          <p>监测大模型回答更可能参考的来源、来源类型分布及不同模型的来源偏好。</p>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="source-page">
+          <!-- 筛选区 -->
+          <section class="source-toolbar">
+            <div class="source-toolbar-row">
+              <div class="source-field">
+                <label class="source-label">搜索问题关键词</label>
+                <input id="questionKeyword" class="source-input" type="text" placeholder="按问题内容搜索" />
+              </div>
+
+              <div class="source-field">
+                <label class="source-label">搜索来源名称</label>
+                <input id="sourceKeyword" class="source-input" type="text" placeholder="按来源名称搜索" />
+              </div>
+
+              <div class="source-field small">
+                <label class="source-label">模型 / Provider</label>
+                <select id="providerFilter" class="source-select">
+                  <option value="">全部模型</option>
+                </select>
+              </div>
+
+              <div class="source-field small">
+                <label class="source-label">来源类型</label>
+                <select id="sourceTypeFilter" class="source-select">
+                  <option value="">全部类型</option>
+                </select>
+              </div>
+
+              <div class="source-field small">
+                <label class="source-label">归因方式</label>
+                <select id="attrTypeFilter" class="source-select">
+                  <option value="">全部</option>
+                  <option value="explicit">explicit</option>
+                  <option value="inferred">inferred</option>
+                  <option value="synthesized">synthesized</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="source-actions">
+              <button id="refreshBtn" class="source-btn primary">刷新数据</button>
+              <button id="resetBtn" class="source-btn secondary">重置筛选</button>
+              <div id="toolbarTip" class="source-tip"></div>
+            </div>
+          </section>
+
+          <!-- 核心指标 -->
+          <section>
+            <div class="source-section-title">核心指标</div>
+            <div class="source-stats-grid">
+              <div class="source-card">
+                <div class="source-stat-title">归因总条数</div>
+                <div id="statTotalRows" class="source-stat-value">0</div>
+                <div class="source-stat-sub">当前筛选范围内的全部归因记录</div>
+              </div>
+
+              <div class="source-card">
+                <div class="source-stat-title">高置信显式来源</div>
+                <div id="statUniqueSources" class="source-stat-value">0</div>
+                <div class="source-stat-sub">explicit 且 confidence ≥ 0.8</div>
+              </div>
+
+              <div class="source-card">
+                <div class="source-stat-title">综合知识占比</div>
+                <div id="statOfficialRatio" class="source-stat-value">0%</div>
+                <div class="source-stat-sub">synthesized 占全部归因记录比例</div>
+              </div>
+
+              <div class="source-card">
+                <div class="source-stat-title">最高频来源</div>
+                <div id="statTopSource" class="source-stat-value" style="font-size:22px;">-</div>
+                <div id="statTopSourceSub" class="source-stat-sub">仅统计高置信 explicit 来源</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 图表区 -->
+          <section>
+            <div class="source-section-title">可视化分析</div>
+            <div class="source-chart-grid">
+              <div class="source-card source-chart-card">
+                <div class="source-stat-title" style="margin-bottom:12px;">来源类型分布</div>
+                <div class="source-chart-wrap">
+                  <canvas id="typePieChart"></canvas>
+                </div>
+              </div>
+
+              <div class="source-card source-chart-card">
+                <div class="source-stat-title" style="margin-bottom:12px;">来源 Top10</div>
+                <div class="source-chart-wrap">
+                  <canvas id="topSourceBarChart"></canvas>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <div class="source-card source-chart-card">
+              <div class="source-stat-title" style="margin-bottom:12px;">按模型看来源类型偏好</div>
+              <div class="source-chart-wrap">
+                <canvas id="modelTypeStackChart"></canvas>
+              </div>
+            </div>
+          </section>
+
+          <!-- 明细表 -->
+          <section>
+            <div class="source-section-title">归因明细</div>
+            <div class="source-table-wrap">
+              <table class="source-table">
+                <thead>
+                  <tr>
+                    <th style="width: 18%;">问题</th>
+                    <th style="width: 10%;">模型</th>
+                    <th style="width: 14%;">来源</th>
+                    <th style="width: 10%;">来源类型</th>
+                    <th style="width: 10%;">归因方式</th>
+                    <th style="width: 8%;">置信度</th>
+                    <th style="width: 20%;">证据</th>
+                    <th style="width: 10%;">时间</th>
+                    <th style="width: 8%;">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="detailTableBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- 详情弹窗 -->
+  <div id="detailModal" class="source-modal">
+    <div class="source-modal-card">
+      <div class="source-modal-header">
+        <div class="source-modal-title">归因详情</div>
+        <button class="source-btn secondary" onclick="closeDetailModal()">关闭</button>
+      </div>
+
+      <div class="source-detail-block">
+        <div class="source-detail-label">问题</div>
+        <div id="detailQuestion" class="source-detail-content"></div>
+      </div>
+
+      <div class="source-detail-block">
+        <div class="source-detail-label">模型 / Provider</div>
+        <div id="detailProvider" class="source-detail-content"></div>
+      </div>
+
+      <div class="source-detail-block">
+        <div class="source-detail-label">原始回答</div>
+        <div id="detailResponse" class="source-detail-content"></div>
+      </div>
+
+      <div class="source-detail-block">
+        <div class="source-detail-label">来源归因结果</div>
+        <div id="detailSources" class="source-source-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let sourceRows = [];
+    let filteredRows = [];
+    let runMap = {};
+    let questionMap = {};
+    let charts = {
+      typePie: null,
+      topBar: null,
+      modelStack: null
+    };
+
+    const CHART_COLORS = {
+      '官网': '#60a5fa',
+      '销售平台': '#34d399',
+      '数据平台': '#fbbf24',
+      '新闻媒体': '#f87171',
+      '社区论坛': '#a78bfa',
+      '百科': '#22d3ee',
+      '监管机构': '#f472b6',
+      '应用商店': '#fb7185',
+      '未知': '#94a3b8'
+    };
+
+    function $(id) {
+      return document.getElementById(id);
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, s => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[s]));
+    }
+
+    function toast(msg) {
+      $('toolbarTip').textContent = msg || '';
+    }
+
+    function formatPct(num) {
+      if (!isFinite(num)) return '0%';
+      return (num * 100).toFixed(1).replace(/\.0$/, '') + '%';
+    }
+
+    function formatDateTime(value) {
+      if (!value) return '-';
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return value;
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      return `${y}-${m}-${day} ${hh}:${mm}`;
+    }
+
+    function buildOptions(rows, field) {
+      const values = [...new Set(rows.map(x => String(x[field] || '').trim()).filter(Boolean))];
+      return values.sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    }
+
+    function buildLayeredRows(rows) {
+      const explicitRows = rows.filter(
+        row => row.attribution_type === 'explicit' && Number(row.confidence_score || 0) >= 0.8
+      );
+
+      const inferredRows = rows.filter(
+        row => row.attribution_type === 'inferred'
+      );
+
+      const synthesizedRows = rows.filter(
+        row => row.attribution_type === 'synthesized'
+      );
+
+      return {
+        explicitRows,
+        inferredRows,
+        synthesizedRows
+      };
+    }
+
+    function getAttrPriority(row) {
+      const type = String(row.attribution_type || '').trim();
+      const conf = Number(row.confidence_score || 0);
+
+      if (type === 'explicit' && conf >= 0.8) return 1;
+      if (type === 'inferred') return 2;
+      if (type === 'synthesized') return 3;
+      return 9;
+    }
+
+    function sortRowsForDisplay(rows) {
+      return [...rows].sort((a, b) => {
+        const pa = getAttrPriority(a);
+        const pb = getAttrPriority(b);
+        if (pa !== pb) return pa - pb;
+
+        const ca = Number(a.confidence_score || 0);
+        const cb = Number(b.confidence_score || 0);
+        if (cb !== ca) return cb - ca;
+
+        const ta = new Date(a.created_at || 0).getTime();
+        const tb = new Date(b.created_at || 0).getTime();
+        return tb - ta;
+      });
+    }
+
+    function destroyCharts() {
+      if (charts.typePie) charts.typePie.destroy();
+      if (charts.topBar) charts.topBar.destroy();
+      if (charts.modelStack) charts.modelStack.destroy();
+      charts.typePie = null;
+      charts.topBar = null;
+      charts.modelStack = null;
+    }
+
+    async function loadAllData() {
+      toast('正在刷新数据...');
+
+      const [sourcesRes, runsRes, questionsRes] = await Promise.all([
+        sb.from(SUPABASE_GEO_RUN_SOURCES_TABLE).select('*').order('created_at', { ascending: false }).limit(2000),
+        sb.from(SUPABASE_GEO_RUNS_TABLE).select('*').order('run_time', { ascending: false }).limit(1000),
+        sb.from(SUPABASE_GEO_QUESTIONS_TABLE).select('*').limit(1000)
+      ]);
+
+      if (sourcesRes.error) throw sourcesRes.error;
+      if (runsRes.error) throw runsRes.error;
+      if (questionsRes.error) throw questionsRes.error;
+
+      sourceRows = sourcesRes.data || [];
+
+      runMap = {};
+      for (const row of (runsRes.data || [])) {
+        runMap[row.id] = row;
+      }
+
+      questionMap = {};
+      for (const row of (questionsRes.data || [])) {
+        questionMap[row.id] = row;
+      }
+
+      fillFilterOptions();
+      applyFilters();
+      toast(`刷新完成：${sourceRows.length} 条来源归因记录`);
+    }
+
+    function fillFilterOptions() {
+      const providerValues = [...new Set(sourceRows.map(x => {
+        const p = String(x.provider || '').trim();
+        const m = String(x.model_name || '').trim();
+        return [p, m].filter(Boolean).join(' / ');
+      }).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+
+      const sourceTypes = buildOptions(sourceRows, 'source_type');
+
+      $('providerFilter').innerHTML =
+        '<option value="">全部模型</option>' +
+        providerValues.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+
+      $('sourceTypeFilter').innerHTML =
+        '<option value="">全部类型</option>' +
+        sourceTypes.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+    }
+
+    function getQuestionText(row) {
+      return questionMap[row.question_id]?.question || '';
+    }
+
+    function applyFilters() {
+      const qkw = ($('questionKeyword').value || '').trim().toLowerCase();
+      const skw = ($('sourceKeyword').value || '').trim().toLowerCase();
+      const providerFilter = $('providerFilter').value || '';
+      const sourceTypeFilter = $('sourceTypeFilter').value || '';
+      const attrTypeFilter = $('attrTypeFilter').value || '';
+
+      filteredRows = sourceRows.filter(row => {
+        const questionText = getQuestionText(row).toLowerCase();
+        const sourceName = String(row.source_name || '').toLowerCase();
+        const providerText = [row.provider || '', row.model_name || ''].filter(Boolean).join(' / ');
+        const okQ = !qkw || questionText.includes(qkw);
+        const okS = !skw || sourceName.includes(skw);
+        const okP = !providerFilter || providerText === providerFilter;
+        const okType = !sourceTypeFilter || (row.source_type || '') === sourceTypeFilter;
+        const okAttr = !attrTypeFilter || (row.attribution_type || '') === attrTypeFilter;
+        return okQ && okS && okP && okType && okAttr;
+      });
+
+      renderAll();
+    }
+
+      function calcStats() {
+        const total = filteredRows.length;
+        const { explicitRows, inferredRows, synthesizedRows } = buildLayeredRows(filteredRows);
+
+        const uniqueSources = new Set(
+          explicitRows.map(x => String(x.source_name || '').trim()).filter(Boolean)
+        ).size;
+
+        const officialCount = explicitRows.filter(x => (x.source_type || '') === '官网').length;
+        const officialRatio = explicitRows.length ? officialCount / explicitRows.length : 0;
+
+        const sourceCount = {};
+        for (const row of explicitRows) {
+          const key = String(row.source_name || '').trim() || '未知来源';
+          sourceCount[key] = (sourceCount[key] || 0) + 1;
+        }
+
+        const topSourceEntry = Object.entries(sourceCount).sort((a, b) => b[1] - a[1])[0] || null;
+
+        return {
+          total,
+          explicitCount: explicitRows.length,
+          inferredCount: inferredRows.length,
+          synthesizedCount: synthesizedRows.length,
+          uniqueSources,
+          officialRatio,
+          topSourceName: topSourceEntry ? topSourceEntry[0] : '-',
+          topSourceCount: topSourceEntry ? topSourceEntry[1] : 0
+        };
+      }
+
+    function renderStats() {
+      const stats = calcStats();
+
+      $('statTotalRows').textContent = String(stats.total);
+      $('statUniqueSources').textContent = String(stats.explicitCount || 0);
+
+      const synthesizedRatio = stats.total
+        ? (stats.synthesizedCount || 0) / stats.total
+        : 0;
+
+      $('statOfficialRatio').textContent = formatPct(synthesizedRatio);
+
+      $('statTopSource').textContent = stats.topSourceName || '-';
+      $('statTopSourceSub').textContent = stats.topSourceCount
+        ? `出现 ${stats.topSourceCount} 次（高置信 explicit）`
+        : '暂无高置信 explicit 来源';
+    }
+
+    function aggregateByType(rows) {
+      const grouped = {};
+      for (const row of rows) {
+        const key = String(row.source_type || '未知').trim() || '未知';
+        grouped[key] = (grouped[key] || 0) + 1;
+      }
+      return grouped;
+    }
+
+    function aggregateTopSources(rows, topN = 10) {
+      const grouped = {};
+      for (const row of rows) {
+        const key = String(row.source_name || '未知来源').trim() || '未知来源';
+        grouped[key] = (grouped[key] || 0) + 1;
+      }
+      return Object.entries(grouped)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, topN);
+    }
+
+    function aggregateModelType(rows) {
+      const modelSet = new Set();
+      const typeSet = new Set();
+      const matrix = {};
+
+      for (const row of rows) {
+        const modelKey = [row.provider || '', row.model_name || ''].filter(Boolean).join(' / ') || '未知模型';
+        const typeKey = String(row.source_type || '未知').trim() || '未知';
+
+        modelSet.add(modelKey);
+        typeSet.add(typeKey);
+
+        if (!matrix[modelKey]) matrix[modelKey] = {};
+        matrix[modelKey][typeKey] = (matrix[modelKey][typeKey] || 0) + 1;
+      }
+
+      const models = Array.from(modelSet).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+      const types = Array.from(typeSet).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+
+      return { models, types, matrix };
+    }
+
+    function renderCharts() {
+      destroyCharts();
+
+      const { explicitRows } = buildLayeredRows(filteredRows);
+
+      // 图表默认只看高置信 explicit 来源
+      const chartRows = explicitRows;
+
+      if (!chartRows.length) {
+        const noDataOptions = {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            title: {
+              display: true,
+              text: '暂无高置信 explicit 来源数据',
+              color: '#a8b8d3'
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: '#b8c7df' },
+              grid: { color: 'rgba(120,160,255,0.08)' }
+            },
+            y: {
+              ticks: { color: '#dbe7f5' },
+              grid: { color: 'rgba(120,160,255,0.08)' }
+            }
+          }
+        };
+
+        charts.typePie = new Chart($('typePieChart').getContext('2d'), {
+          type: 'doughnut',
+          data: {
+            labels: ['暂无数据'],
+            datasets: [{
+              data: [1],
+              backgroundColor: ['#334155'],
+              borderColor: 'rgba(15,23,42,0.3)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: {
+                  color: '#dbe7f5',
+                  boxWidth: 14
+                }
+              },
+              title: {
+                display: true,
+                text: '暂无高置信 explicit 来源数据',
+                color: '#a8b8d3'
+              }
+            }
+          }
+        });
+
+        charts.topBar = new Chart($('topSourceBarChart').getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: ['暂无数据'],
+            datasets: [{
+              label: '归因次数',
+              data: [0],
+              backgroundColor: '#334155',
+              borderRadius: 8
+            }]
+          },
+          options: noDataOptions
+        });
+
+        charts.modelStack = new Chart($('modelTypeStackChart').getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: ['暂无数据'],
+            datasets: [{
+              label: '暂无数据',
+              data: [0],
+              backgroundColor: '#334155',
+              borderRadius: 6
+            }]
+          },
+          options: noDataOptions
+        });
+
+        return;
+      }
+
+      // 饼图：来源类型分布（只统计高置信 explicit）
+      const typeGrouped = aggregateByType(chartRows);
+      const pieLabels = Object.keys(typeGrouped);
+      const pieValues = pieLabels.map(k => typeGrouped[k]);
+      const pieColors = pieLabels.map(k => CHART_COLORS[k] || '#94a3b8');
+
+      charts.typePie = new Chart($('typePieChart').getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: pieLabels,
+          datasets: [{
+            data: pieValues,
+            backgroundColor: pieColors,
+            borderColor: 'rgba(15,23,42,0.3)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#dbe7f5',
+                boxWidth: 14
+              }
+            }
+          }
+        }
+      });
+
+      // 柱状图：Top10 来源（只统计高置信 explicit）
+      const topSources = aggregateTopSources(chartRows, 10);
+      charts.topBar = new Chart($('topSourceBarChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: topSources.map(x => x[0]),
+          datasets: [{
+            label: '归因次数',
+            data: topSources.map(x => x[1]),
+            backgroundColor: '#60a5fa',
+            borderRadius: 8
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              ticks: { color: '#b8c7df' },
+              grid: { color: 'rgba(120,160,255,0.08)' }
+            },
+            y: {
+              ticks: { color: '#dbe7f5' },
+              grid: { display: false }
+            }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+
+      // 堆叠图：按模型看来源类型偏好（只统计高置信 explicit）
+      const { models, types, matrix } = aggregateModelType(chartRows);
+      charts.modelStack = new Chart($('modelTypeStackChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: models,
+          datasets: types.map(type => ({
+            label: type,
+            data: models.map(m => matrix[m]?.[type] || 0),
+            backgroundColor: CHART_COLORS[type] || '#94a3b8',
+            borderRadius: 6
+          }))
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              stacked: true,
+              ticks: { color: '#dbe7f5' },
+              grid: { display: false }
+            },
+            y: {
+              stacked: true,
+              ticks: { color: '#b8c7df' },
+              grid: { color: 'rgba(120,160,255,0.08)' }
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#dbe7f5',
+                boxWidth: 14
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function formatConfidence(value) {
+      const n = Number(value || 0);
+      if (!isFinite(n)) return '-';
+      return n.toFixed(2);
+    }
+
+    function badgeBySourceType(type) {
+      const val = type || '未知';
+      const colorMap = {
+        '官网': 'blue',
+        '销售平台': 'green',
+        '数据平台': 'yellow',
+        '新闻媒体': 'purple',
+        '社区论坛': 'purple',
+        '百科': 'gray',
+        '监管机构': 'yellow',
+        '应用商店': 'gray',
+        '未知': 'gray'
+      };
+      return `<span class="source-badge ${colorMap[val] || 'gray'}">${escapeHtml(val)}</span>`;
+    }
+
+    function badgeByAttrType(type) {
+      const val = type || 'inferred';
+
+      let color = 'blue';
+      if (val === 'explicit') color = 'green';
+      else if (val === 'inferred') color = 'blue';
+      else if (val === 'synthesized') color = 'gray';
+
+      return `<span class="source-badge ${color}">${escapeHtml(val)}</span>`;
+    }
+
+   function renderDetailTable() {
+      const tbody = $('detailTableBody');
+      const displayRows = sortRowsForDisplay(filteredRows);
+
+      if (!displayRows.length) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="9">
+              <div class="source-empty">暂无符合条件的来源归因记录</div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = displayRows.map(row => {
+        const question = questionMap[row.question_id];
+        const providerText = [row.provider || '-', row.model_name || '-'].filter(Boolean).join(' / ');
+        const isSynthesized = row.attribution_type === 'synthesized';
+
+        return `
+          <tr style="${isSynthesized ? 'opacity:0.72;' : ''}">
+            <td>
+              <div class="source-question">${escapeHtml(question?.question || '-')}</div>
+            </td>
+            <td>
+              <div>${escapeHtml(providerText)}</div>
+            </td>
+            <td>
+              <div style="font-weight:700; color:${isSynthesized ? '#cbd5e1' : '#e8eef8'};">
+                ${escapeHtml(row.source_name || '-')}
+              </div>
+              <div class="source-subtext">${escapeHtml(row.source_domain || '')}</div>
+            </td>
+            <td>${badgeBySourceType(row.source_type)}</td>
+            <td>${badgeByAttrType(row.attribution_type)}</td>
+            <td>${formatConfidence(row.confidence_score)}</td>
+            <td>
+              <div class="source-subtext" style="font-size:13px; color:${isSynthesized ? '#a8b8d3' : '#dbe7f5'};">
+                ${escapeHtml(row.evidence_text || '-')}
+              </div>
+            </td>
+            <td>${formatDateTime(row.created_at)}</td>
+            <td>
+              <button class="source-link-btn" onclick="showDetail('${row.run_id}')">查看</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderAll() {
+      renderStats();
+      renderCharts();
+      renderDetailTable();
+    }
+
+    function resetFilters() {
+      $('questionKeyword').value = '';
+      $('sourceKeyword').value = '';
+      $('providerFilter').value = '';
+      $('sourceTypeFilter').value = '';
+      $('attrTypeFilter').value = '';
+      applyFilters();
+    }
+
+    async function showDetail(runId) {
+      try {
+        const run = runMap[runId];
+        if (!run) {
+          alert('未找到对应运行记录');
+          return;
+        }
+
+        const question = questionMap[run.question_id];
+
+        const relatedSources = sortRowsForDisplay(
+          sourceRows.filter(x => String(x.run_id) === String(runId))
+        ).sort((a, b) => {
+          const pa = getAttrPriority(a);
+          const pb = getAttrPriority(b);
+          if (pa !== pb) return pa - pb;
+
+          const ra = Number(a.rank_no || 999);
+          const rb = Number(b.rank_no || 999);
+          return ra - rb;
+        });
+
+        $('detailQuestion').textContent = question?.question || '-';
+        $('detailProvider').textContent = [
+          run.provider || '-',
+          run.model_name || '-',
+          formatDateTime(run.run_time)
+        ].join(' / ');
+        $('detailResponse').textContent = run.raw_response || '';
+
+        if (!relatedSources.length) {
+          $('detailSources').innerHTML =
+            `<div class="source-empty" style="padding:12px 0;">暂无来源归因结果</div>`;
+        } else {
+          $('detailSources').innerHTML = relatedSources.map(item => {
+            const isSynthesized = item.attribution_type === 'synthesized';
+
+            return `
+              <div class="source-source-item" style="${isSynthesized ? 'opacity:0.72;' : ''}">
+                <div class="source-source-top">
+                  <div class="source-source-name" style="color:${isSynthesized ? '#cbd5e1' : '#e8eef8'};">
+                    ${escapeHtml(item.source_name || '-')}
+                  </div>
+                  <div class="source-source-meta">
+                    rank: ${item.rank_no || '-'} ｜ confidence: ${formatConfidence(item.confidence_score)}
+                  </div>
+                </div>
+                <div style="margin-bottom:8px;">
+                  ${badgeBySourceType(item.source_type)}
+                  ${badgeByAttrType(item.attribution_type)}
+                </div>
+                ${item.source_domain ? `<div class="source-subtext">域名：${escapeHtml(item.source_domain)}</div>` : ''}
+                <div class="source-subtext" style="margin-top:6px; color:${isSynthesized ? '#a8b8d3' : '#dbe7f5'};">
+                  证据：${escapeHtml(item.evidence_text || '-')}
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        $('detailModal').classList.add('show');
+      } catch (err) {
+        console.error(err);
+        alert('读取详情失败：' + (err.message || err));
+      }
+    }
+
+    function closeDetailModal() {
+      $('detailModal').classList.remove('show');
+    }
+
+    function bindEvents() {
+      $('refreshBtn').addEventListener('click', loadAllData);
+      $('resetBtn').addEventListener('click', resetFilters);
+
+      $('questionKeyword').addEventListener('input', applyFilters);
+      $('sourceKeyword').addEventListener('input', applyFilters);
+      $('providerFilter').addEventListener('change', applyFilters);
+      $('sourceTypeFilter').addEventListener('change', applyFilters);
+      $('attrTypeFilter').addEventListener('change', applyFilters);
+
+      $('detailModal').addEventListener('click', (e) => {
+        if (e.target.id === 'detailModal') closeDetailModal();
+      });
+    }
+
+    window.showDetail = showDetail;
+    window.closeDetailModal = closeDetailModal;
+
+    async function init() {
+      bindEvents();
+      await loadAllData();
+    }
+
+    init();
+  </script>
+</body>
+</html>

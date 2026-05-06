@@ -58,7 +58,17 @@ function renderNav() {
           <span class="nav-icon">🌐</span>
           <span class="nav-label">GEO监测</span>
         </a>
+
+        <a href="geo-source.html"
+          class="nav-item ${current === 'geo-source.html' ? 'active' : ''}"
+             id="nav-geo-source">
+          <span class="nav-icon">🧭</span>
+          <span class="nav-label">来源归因</span>
+</a>
+
+
       </nav>
+
 
       <!-- 底部 -->
       <div class="sidebar-footer">

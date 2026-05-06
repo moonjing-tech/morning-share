@@ -16,6 +16,9 @@ const SUPABASE_GEO_BRAND_DICT_TABLE = 'geo_brand_dict';
 const SUPABASE_GEO_PROVIDERS_TABLE = 'geo_providers';
 const SUPABASE_GEO_LATEST_VIEW = 'geo_question_latest_runs';
 const SUPABASE_GEO_PROVIDER_LATEST_VIEW = 'geo_question_provider_latest_runs';
+const SUPABASE_GEO_RUN_SOURCES_TABLE = 'geo_run_sources';
+const SUPABASE_GEO_SOURCE_STATS_VIEW = 'geo_source_stats';
+const SUPABASE_GEO_SOURCE_STATS_BY_MODEL_VIEW = 'geo_source_stats_by_model';
 
 // ── AI 默认配置 ───────────────────────────────────────────
 const AI_DEFAULT_CONFIG = {
@@ -40,6 +43,7 @@ const NAV_MAP = {
   'fund.html':   { navId: 'nav-fund', title: '基金实时估值', icon: '📈' },
   'app.html':    { navId: 'nav-app',  title: '竞品追踪',     icon: '📱' },
   'geo.html':    { navId: 'nav-geo',  title: 'GEO监测',     icon: '🌐' },
+  'geo-source.html': { navId: 'nav-geo-source', title: '来源归因', icon: '🧭' },
 };
 
 // ── 工具函数：读取 AI 配置（优先 localStorage）─────────────

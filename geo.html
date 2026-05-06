@@ -1,1584 +1,2075 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GEO监测</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEO监测 · 产品工作台</title>
 
-  <link rel="stylesheet" href="./shared/base.css" />
-  <link rel="stylesheet" href="./shared/nav.css" />
+<!-- 项目共享样式 -->
+<link rel="stylesheet" href="shared/base.css">
+<link rel="stylesheet" href="shared/nav.css">
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./shared/config.js"></script>
-  <script src="./shared/nav.js"></script>
+<!-- Chart.js（按模型统计用） -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-  <style>
-  .geo-page {
-    display: flex;
+<style>
+/* ===== GEO 专属深色主题 ===== */
+:root {
+  --geo-bg: #0f1419;
+  --geo-card: #161c24;
+  --geo-card-hover: #1c2430;
+  --geo-border: #253040;
+  --geo-text-primary: #e8eef8;
+  --geo-text-body: #dbe7f5;
+  --geo-text-secondary: #a8b8d3;
+  --geo-text-muted: #8fa3c2;
+  --geo-accent: #3b82f6;
+  --geo-accent-hover: #2563eb;
+  --geo-green: #22c55e;
+  --geo-green-bg: rgba(34,197,94,0.12);
+  --geo-red: #ef4444;
+  --geo-red-bg: rgba(239,68,68,0.12);
+  --geo-yellow: #f59e0b;
+  --geo-yellow-bg: rgba(245,158,11,0.12);
+  --geo-purple: #8b5cf6;
+  --geo-input-bg: #1a212b;
+  --geo-input-border: #253040;
+  --geo-input-focus: #3b82f6;
+  --geo-table-header: #1a212b;
+  --geo-table-row-hover: rgba(59,130,246,0.04);
+  --geo-badge-bg: rgba(139,92,246,0.12);
+  --geo-badge-text: #a78bfa;
+  --geo-modal-overlay: rgba(0,0,0,0.7);
+  --geo-radius: 10px;
+  --geo-radius-sm: 6px;
+}
+
+/* 重置 body 背景 */
+body {
+  background: var(--geo-bg);
+  color: var(--geo-text-body);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+/* 覆盖 base.css 里可能冲突的样式 */
+.layout {
+  min-height: 100vh;
+  background: var(--geo-bg);
+}
+
+.header {
+  background: var(--geo-card);
+  border-bottom: 1px solid var(--geo-border);
+}
+
+.header h1 {
+  color: var(--geo-text-primary);
+}
+
+.content {
+  padding: 24px 28px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ===== 统计卡片 ===== */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  background: var(--geo-card);
+  border: 1px solid var(--geo-border);
+  border-radius: var(--geo-radius);
+  padding: 18px 20px;
+  transition: border-color .2s;
+}
+
+.stat-card:hover {
+  border-color: var(--geo-accent);
+}
+
+.stat-card .stat-label {
+  font-size: 12.5px;
+  color: var(--geo-text-muted);
+  margin-bottom: 8px;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+}
+
+.stat-card .stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--geo-text-primary);
+  line-height: 1.1;
+}
+
+.stat-card .stat-sub {
+  font-size: 12px;
+  color: var(--geo-text-secondary);
+  margin-top: 6px;
+}
+
+.stat-card.accent .stat-value { color: var(--geo-accent); }
+.stat-card.green .stat-value { color: var(--geo-green); }
+.stat-card.purple .stat-value { color: var(--geo-purple); }
+.stat-card.yellow .stat-value { color: var(--geo-yellow); }
+
+/* ===== 按模型统计卡片 ===== */
+.provider-stats-section {
+  margin-bottom: 20px;
+}
+
+.provider-stats-section .section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--geo-text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 12px;
+}
+
+.provider-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.provider-stat-card {
+  background: var(--geo-card);
+  border: 1px solid var(--geo-border);
+  border-radius: var(--geo-radius);
+  padding: 14px 18px;
+}
+
+.provider-stat-card .ps-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.provider-stat-card .ps-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--geo-text-primary);
+}
+
+.provider-stat-card .ps-model {
+  font-size: 11px;
+  color: var(--geo-text-muted);
+  background: var(--geo-badge-bg);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.provider-stat-card .ps-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.ps-metric {
+  text-align: center;
+  padding: 6px 4px;
+  border-radius: var(--geo-radius-sm);
+  background: rgba(255,255,255,0.02);
+}
+
+.ps-metric .ps-val {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--geo-text-primary);
+}
+
+.ps-metric .ps-lbl {
+  font-size: 10px;
+  color: var(--geo-text-muted);
+  margin-top: 2px;
+}
+
+.ps-metric.highlight .ps-val { color: var(--geo-green); }
+
+/* ===== 操作栏 ===== */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.toolbar .search-input {
+  flex: 1;
+  min-width: 200px;
+  max-width: 320px;
+  padding: 9px 14px;
+  background: var(--geo-input-bg);
+  border: 1px solid var(--geo-input-border);
+  border-radius: var(--geo-radius-sm);
+  color: var(--geo-text-primary);
+  font-size: 13px;
+  outline: none;
+  transition: border-color .2s;
+}
+
+.toolbar .search-input:focus {
+  border-color: var(--geo-input-focus);
+}
+
+.toolbar .search-input::placeholder {
+  color: var(--geo-text-muted);
+}
+
+.toolbar select {
+  padding: 9px 12px;
+  background: var(--geo-input-bg);
+  border: 1px solid var(--geo-input-border);
+  border-radius: var(--geo-radius-sm);
+  color: var(--geo-text-primary);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+
+.toolbar select:focus {
+  border-color: var(--geo-input-focus);
+}
+
+/* ===== 按钮 ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 16px;
+  border-radius: var(--geo-radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all .2s;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--geo-accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--geo-accent-hover);
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--geo-border);
+  color: var(--geo-text-primary);
+}
+
+.btn-outline:hover {
+  border-color: var(--geo-accent);
+  color: var(--geo-accent);
+}
+
+.btn-warning {
+  background: var(--geo-yellow);
+  color: #0f1419;
+}
+
+.btn-warning:hover {
+  filter: brightness(1.1);
+}
+
+.btn-sm {
+  padding: 5px 11px;
+  font-size: 12px;
+}
+
+.btn-danger {
+  background: var(--geo-red);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  filter: brightness(1.15);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ===== 批量进度条 ===== */
+.batch-progress {
+  display: none;
+  background: var(--geo-card);
+  border: 1px solid var(--geo-border);
+  border-radius: var(--geo-radius);
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  align-items: center;
+  gap: 14px;
+}
+
+.batch-progress.active {
+  display: flex;
+}
+
+.batch-progress .bp-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.batch-progress .bp-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--geo-accent), var(--geo-purple));
+  border-radius: 4px;
+  transition: width .3s;
+}
+
+.batch-progress .bp-text {
+  font-size: 13px;
+  color: var(--geo-text-secondary);
+  white-space: nowrap;
+  min-width: 100px;
+  text-align: right;
+}
+
+.batch-progress .bp-detail {
+  font-size: 11px;
+  color: var(--geo-text-muted);
+  white-space: nowrap;
+}
+
+/* ===== 表格 ===== */
+.table-wrap {
+  overflow-x: auto;
+  border-radius: var(--geo-radius);
+  border: 1px solid var(--geo-border);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+thead th {
+  background: var(--geo-table-header);
+  color: #b8c7df;
+  font-weight: 600;
+  padding: 12px 14px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--geo-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+tbody td {
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--geo-text-body);
+  vertical-align: middle;
+}
+
+tbody tr:hover {
+  background: var(--geo-table-row-hover);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ===== 徽标 ===== */
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.badge-mentioned {
+  background: var(--geo-green-bg);
+  color: var(--geo-green);
+}
+
+.badge-not-mentioned {
+  background: var(--geo-red-bg);
+  color: var(--geo-red);
+}
+
+.badge-pending {
+  background: var(--geo-yellow-bg);
+  color: var(--geo-yellow);
+}
+
+.badge-track {
+  background: var(--geo-badge-bg);
+  color: var(--geo-badge-text);
+}
+
+.badge-provider {
+  background: rgba(59,130,246,0.12);
+  color: #60a5fa;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+/* ===== 弹窗 ===== */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--geo-modal-overlay);
+  z-index: 999;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal {
+  background: var(--geo-card);
+  border: 1px solid var(--geo-border);
+  border-radius: var(--geo-radius);
+  width: 90vw;
+  max-width: 780px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--geo-border);
+}
+
+.modal-header h3 {
+  color: var(--geo-text-primary);
+  font-size: 16px;
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--geo-text-muted);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: var(--geo-text-primary);
+}
+
+.modal-body {
+  padding: 20px 22px;
+  overflow-y: auto;
+  flex: 1;
+  color: var(--geo-text-body);
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.modal-footer {
+  padding: 14px 22px;
+  border-top: 1px solid var(--geo-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ===== 表单弹窗内 ===== */
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--geo-text-secondary);
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--geo-input-bg);
+  border: 1px solid var(--geo-input-border);
+  border-radius: var(--geo-radius-sm);
+  color: var(--geo-text-primary);
+  font-size: 13px;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  border-color: var(--geo-input-focus);
+}
+
+.form-group textarea {
+  min-height: 80px;
+}
+
+.form-hint {
+  font-size: 11px;
+  color: var(--geo-text-muted);
+  margin-top: 4px;
+}
+
+/* ===== 来源标签（弹窗详情中） ===== */
+.source-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.source-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.source-tag.explicit {
+  background: var(--geo-green-bg);
+  color: var(--geo-green);
+}
+
+.source-tag.inferred {
+  background: var(--geo-yellow-bg);
+  color: var(--geo-yellow);
+}
+
+.source-tag.synthesized {
+  background: rgba(255,255,255,0.06);
+  color: var(--geo-text-muted);
+}
+
+/* ===== 空状态 ===== */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--geo-text-muted);
+}
+
+.empty-state .empty-icon {
+  font-size: 48px;
+  margin-bottom: 14px;
+}
+
+.empty-state .empty-text {
+  font-size: 14px;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 1000px) {
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .content {
+    padding: 16px 14px;
+  }
+  .toolbar {
     flex-direction: column;
-    gap: 16px;
+    align-items: stretch;
   }
-
-  .geo-toolbar,
-  .geo-card,
-  .geo-modal-card {
-    background: rgba(16, 24, 48, 0.92);
-    border: 1px solid rgba(120, 160, 255, 0.22);
-    border-radius: 16px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  .toolbar .search-input {
+    max-width: 100%;
   }
-
-  .geo-toolbar {
-    padding: 16px;
-  }
-
-  .geo-toolbar-top,
-  .geo-toolbar-bottom {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: center;
-  }
-
-  .geo-toolbar-bottom {
-    margin-top: 12px;
-  }
-
-  .geo-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 180px;
-    flex: 1;
-  }
-
-  .geo-field.small {
-    min-width: 120px;
-    flex: 0 0 140px;
-  }
-
-  .geo-label {
-    font-size: 12px;
-    color: #a8b8d3;
-  }
-
-  .geo-input,
-  .geo-select,
-  .geo-textarea {
-    width: 100%;
-    border: 1px solid rgba(120, 160, 255, 0.24);
-    border-radius: 10px;
-    padding: 10px 12px;
-    font-size: 14px;
-    outline: none;
-    transition: all 0.2s ease;
-    background: rgba(255, 255, 255, 0.04);
-    color: #e2e8f0;
-    box-sizing: border-box;
-  }
-
-  .geo-input::placeholder,
-  .geo-textarea::placeholder {
-    color: #a8b8d3;
-  }
-
-  .geo-select option {
-    background: #0f172a;
-    color: #e2e8f0;
-  }
-
-  .geo-input:focus,
-  .geo-select:focus,
-  .geo-textarea:focus {
-    border-color: #4f8ef7;
-    box-shadow: 0 0 0 3px rgba(79, 142, 247, 0.12);
-  }
-
-  .geo-textarea {
-    min-height: 96px;
-    resize: vertical;
-  }
-
-  .geo-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-  }
-
-  .geo-btn {
-    border: none;
-    border-radius: 10px;
-    padding: 10px 14px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-  }
-
-  .geo-btn.primary {
-    background: linear-gradient(135deg, #4f8ef7 0%, #3b82f6 100%);
-    color: #fff;
-    box-shadow: 0 4px 14px rgba(79, 142, 247, 0.28);
-  }
-
-  .geo-btn.primary:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 18px rgba(79, 142, 247, 0.35);
-  }
-
-  .geo-btn.secondary {
-    background: rgba(79, 142, 247, 0.08);
-    color: #93c5fd;
-    border: 1px solid rgba(79, 142, 247, 0.24);
-  }
-
-  .geo-btn.secondary:hover {
-    background: rgba(79, 142, 247, 0.14);
-  }
-
-  .geo-btn.success {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: #fff;
-    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.24);
-  }
-
-  .geo-btn.success:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 18px rgba(16, 185, 129, 0.32);
-  }
-
-  .geo-btn.warn {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    color: #fff;
-  }
-
-  .geo-btn.warn:hover {
-    transform: translateY(-1px);
-  }
-
-  .geo-btn.danger {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-    color: #fff;
-    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.22);
-  }
-
-  .geo-btn.danger:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 18px rgba(239, 68, 68, 0.3);
-  }
-
-  .geo-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none !important;
-    box-shadow: none !important;
-  }
-
-  .geo-stats-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  .geo-provider-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  .geo-card {
-    padding: 16px;
-  }
-
-  .geo-stat-title {
-    font-size: 13px;
-    color: #a8b8d3;
-    margin-bottom: 8px;
-  }
-
-  .geo-stat-value {
-    font-size: 28px;
-    font-weight: 700;
-    color: #e8eef8;
-    line-height: 1.2;
-  }
-
-  .geo-stat-sub {
-    margin-top: 6px;
-    font-size: 12px;
-    color: #a8b8d3;
-  }
-
-  .geo-section-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: #e8eef8;
-    margin-bottom: 12px;
-  }
-
-  .geo-provider-card {
-    background: linear-gradient(180deg, rgba(16, 24, 48, 0.96) 0%, rgba(22, 32, 64, 0.92) 100%);
-  }
-
-  .geo-provider-name {
-    font-size: 15px;
-    font-weight: 700;
-    color: #e8eef8;
-  }
-
-  .geo-provider-model {
-    margin-top: 4px;
-    font-size: 12px;
-    color: #a8b8d3;
-    word-break: break-all;
-  }
-
-  .geo-provider-metrics {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin-top: 12px;
-  }
-
-  .geo-mini-metric {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(120, 160, 255, 0.14);
-    border-radius: 12px;
-    padding: 10px;
-  }
-
-  .geo-mini-label {
-    font-size: 12px;
-    color: #a8b8d3;
-  }
-
-  .geo-mini-value {
-    margin-top: 4px;
-    font-size: 18px;
-    font-weight: 700;
-    color: #e8eef8;
-  }
-
-  .geo-progress-card {
-    padding: 14px 16px;
-    border: 1px solid rgba(79, 142, 247, 0.24);
-    background: rgba(20, 32, 64, 0.92);
-  }
-
-  .geo-progress-top {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    align-items: center;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
-  }
-
-  .geo-progress-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: #93c5fd;
-  }
-
-  .geo-progress-text {
-    font-size: 13px;
-    color: #a8b8d3;
-  }
-
-  .geo-progress-bar {
-    width: 100%;
-    height: 10px;
-    background: rgba(79, 142, 247, 0.14);
-    border-radius: 999px;
-    overflow: hidden;
-  }
-
-  .geo-progress-inner {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, #2563eb, #38bdf8);
-    transition: width 0.25s ease;
-  }
-
-  .geo-progress-detail {
-    margin-top: 8px;
-    font-size: 12px;
-    color: #a8b8d3;
-  }
-
-  .geo-table-wrap {
-    overflow: auto;
-    background: rgba(16, 24, 48, 0.92);
-    border: 1px solid rgba(120, 160, 255, 0.22);
-    border-radius: 16px;
-  }
-
-  .geo-table {
-    width: 100%;
-    border-collapse: collapse;
-    min-width: 1200px;
-  }
-
-  .geo-table th,
-  .geo-table td {
-    border-bottom: 1px solid rgba(120, 160, 255, 0.08);
-    padding: 12px;
-    font-size: 14px;
-    text-align: left;
-    vertical-align: top;
-  }
-
-  .geo-table th {
-    background: rgba(10, 16, 36, 0.96);
-    color: #a8b8d3;
-    font-weight: 600;
-    position: sticky;
-    top: 0;
-    z-index: 1;
-  }
-
-  .geo-table td {
-    color: #dbe7f5;
-  }
-
-  .geo-table tr:hover td {
-    background: rgba(79, 142, 247, 0.04);
-  }
-
-  .geo-question-text {
-    font-weight: 600;
-    color: #e8eef8;
-    line-height: 1.5;
-  }
-
-  .geo-subtext {
-    margin-top: 4px;
-    font-size: 12px;
-    color: #a8b8d3;
-    line-height: 1.5;
-  }
-
-  .geo-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 4px 8px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1;
-    border: 1px solid transparent;
-    margin-right: 6px;
-    margin-bottom: 6px;
-  }
-
-  .geo-badge.gray {
-    background: rgba(148, 163, 184, 0.12);
-    color: #cbd5e1;
-    border-color: rgba(148, 163, 184, 0.22);
-  }
-
-  .geo-badge.green {
-    background: rgba(16, 185, 129, 0.12);
-    color: #6ee7b7;
-    border-color: rgba(16, 185, 129, 0.3);
-  }
-
-  .geo-badge.red {
-    background: rgba(239, 68, 68, 0.12);
-    color: #fca5a5;
-    border-color: rgba(239, 68, 68, 0.3);
-  }
-
-  .geo-badge.blue {
-    background: rgba(79, 142, 247, 0.12);
-    color: #93c5fd;
-    border-color: rgba(79, 142, 247, 0.3);
-  }
-
-  .geo-badge.yellow {
-    background: rgba(245, 158, 11, 0.12);
-    color: #fcd34d;
-    border-color: rgba(245, 158, 11, 0.3);
-  }
-
-  .geo-result-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-width: 320px;
-  }
-
-  .geo-result-item {
-    border: 1px solid rgba(120, 160, 255, 0.14);
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 12px;
-    padding: 10px;
-  }
-
-  .geo-result-top {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-    margin-bottom: 8px;
-  }
-
-  .geo-result-provider {
-    font-size: 13px;
-    font-weight: 700;
-    color: #e8eef8;
-  }
-
-  .geo-result-model {
-    font-size: 12px;
-    color: #a8b8d3;
-    word-break: break-all;
-  }
-
-  .geo-result-meta {
-    font-size: 12px;
-    color: #a8b8d3;
-  }
-
-  .geo-inline-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .geo-link-btn {
-    background: none;
-    border: none;
-    color: #60a5fa;
-    cursor: pointer;
-    padding: 0;
-    font-size: 13px;
-  }
-
-  .geo-link-btn:hover {
-    text-decoration: underline;
-    color: #93c5fd;
-  }
-
-  .geo-empty {
-    padding: 30px 16px;
-    text-align: center;
-    color: #a8b8d3;
-    font-size: 14px;
-  }
-
-  .geo-tip {
-    font-size: 12px;
-    color: #a8b8d3;
-  }
-
-  .geo-modal {
-    position: fixed;
-    inset: 0;
-    background: rgba(3, 8, 20, 0.72);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    z-index: 2000;
-  }
-
-  .geo-modal.show {
-    display: flex;
-  }
-
-  .geo-modal-card {
-    width: min(920px, 100%);
-    max-height: 85vh;
-    overflow: auto;
-    padding: 18px;
-  }
-
-  .geo-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-
-  .geo-modal-title {
-    font-size: 18px;
-    font-weight: 700;
-    color: #e8eef8;
-  }
-
-  .geo-detail-block {
-    border: 1px solid rgba(120, 160, 255, 0.14);
-    border-radius: 14px;
-    padding: 14px;
-    background: rgba(255, 255, 255, 0.03);
-    margin-bottom: 12px;
-  }
-
-  .geo-detail-label {
-    font-size: 12px;
-    color: #a8b8d3;
-    margin-bottom: 6px;
-  }
-
-  .geo-detail-content {
-    font-size: 14px;
-    color: #e8eef8;
-    line-height: 1.7;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-
-  @media (max-width: 1200px) {
-    .geo-stats-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .geo-provider-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  @media (max-width: 768px) {
-    .geo-stats-grid,
-    .geo-provider-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .geo-field,
-    .geo-field.small {
-      min-width: 100%;
-      flex: 1 1 100%;
-    }
-
-    .geo-actions {
-      width: 100%;
-    }
-
-    .geo-btn {
-      width: 100%;
-    }
-  }
+}
 </style>
 </head>
 <body>
-  <div class="layout">
-    <div id="nav-placeholder"></div>
 
-    <main class="main">
-      <header class="header">
-       <div class="header-title">
-        <span class="page-icon">📈</span>
-        <h1>GEO监测-监测不同 AI 模型下“汇添富”在自然问题中的提及率、首位提及率与推荐表现</h1>
-      </div>
-      </header>
+<div class="layout">
+  <div id="nav-placeholder"></div>
 
-      <div class="content">
-        <div class="geo-page">
-          <!-- 工具栏 -->
-          <section class="geo-toolbar">
-            <div class="geo-toolbar-top">
-              <div class="geo-field">
-                <label class="geo-label">Ark API Key（本地保存）</label>
-                <input id="apiKeyInput" class="geo-input" type="password" placeholder="请输入 Ark API Key" />
-              </div>
+  <div class="main">
+    <div class="header">
+      <h1>🌐 GEO 监测</h1>
+    </div>
 
-              <div class="geo-field small">
-                <label class="geo-label">搜索问题</label>
-                <input id="searchInput" class="geo-input" type="text" placeholder="按问题内容搜索" />
-              </div>
+    <div class="content">
+      <!-- 总体统计卡片 -->
+      <div class="stats-grid" id="statsGrid"></div>
 
-              <div class="geo-field small">
-                <label class="geo-label">赛道</label>
-                <select id="trackFilter" class="geo-select">
-                  <option value="">全部赛道</option>
-                </select>
-              </div>
-
-              <div class="geo-field small">
-                <label class="geo-label">意图</label>
-                <select id="intentFilter" class="geo-select">
-                  <option value="">全部意图</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="geo-toolbar-bottom">
-              <div class="geo-actions">
-                <button id="saveApiKeyBtn" class="geo-btn secondary">保存 API Key</button>
-                <button id="refreshBtn" class="geo-btn secondary">刷新数据</button>
-                <button id="addQuestionBtn" class="geo-btn primary">新增问题</button>
-                <button id="batchRunBtn" class="geo-btn success">批量运行全部问题 × 全部模型</button>
-                <button id="stopBatchBtn" class="geo-btn danger" disabled>停止批量运行</button>
-              </div>
-              <div id="toolbarTip" class="geo-tip"></div>
-            </div>
-          </section>
-
-          <!-- 批量进度 -->
-          <section id="batchProgressCard" class="geo-card geo-progress-card" style="display:none;">
-            <div class="geo-progress-top">
-              <div class="geo-progress-title">批量运行中</div>
-              <div id="batchProgressText" class="geo-progress-text">0 / 0</div>
-            </div>
-            <div class="geo-progress-bar">
-              <div id="batchProgressInner" class="geo-progress-inner"></div>
-            </div>
-            <div id="batchProgressDetail" class="geo-progress-detail">准备中...</div>
-          </section>
-
-          <!-- 总体统计 -->
-          <section>
-            <div class="geo-section-title">总体统计</div>
-            <div class="geo-stats-grid">
-              <div class="geo-card">
-                <div class="geo-stat-title">问题数</div>
-                <div id="statQuestions" class="geo-stat-value">0</div>
-                <div class="geo-stat-sub">当前筛选结果中的问题总数</div>
-              </div>
-
-              <div class="geo-card">
-                <div class="geo-stat-title">Mention Rate</div>
-                <div id="statMentionRate" class="geo-stat-value">0%</div>
-                <div class="geo-stat-sub">最近一次结果中提及“汇添富”的占比</div>
-              </div>
-
-              <div class="geo-card">
-                <div class="geo-stat-title">First Mention Rate</div>
-                <div id="statFirstRate" class="geo-stat-value">0%</div>
-                <div class="geo-stat-sub">最近一次结果中首位提及“汇添富”的占比</div>
-              </div>
-
-              <div class="geo-card">
-                <div class="geo-stat-title">Top Recommendation Rate</div>
-                <div id="statTopRate" class="geo-stat-value">0%</div>
-                <div class="geo-stat-sub">最近一次结果中重点推荐“汇添富”的占比</div>
-              </div>
-            </div>
-          </section>
-
-          <!-- 按模型统计 -->
-          <section>
-            <div class="geo-section-title">按模型统计</div>
-            <div id="providerStats" class="geo-provider-grid"></div>
-          </section>
-
-          <!-- 问题列表 -->
-          <section>
-            <div class="geo-section-title">问题列表（按模型展示最近结果）</div>
-            <div class="geo-table-wrap">
-              <table class="geo-table">
-                <thead>
-                  <tr>
-                    <th style="width: 26%;">问题</th>
-                    <th style="width: 12%;">标签</th>
-                    <th style="width: 42%;">各模型最近结果</th>
-                    <th style="width: 20%;">操作</th>
-                  </tr>
-                </thead>
-                <tbody id="questionTableBody"></tbody>
-              </table>
-            </div>
-          </section>
-        </div>
-      </div>
-    </main>
-  </div>
-
-  <!-- 新增问题弹窗 -->
-  <div id="questionModal" class="geo-modal">
-    <div class="geo-modal-card">
-      <div class="geo-modal-header">
-        <div class="geo-modal-title">新增 GEO 问题</div>
-        <button class="geo-btn secondary" onclick="closeQuestionModal()">关闭</button>
+      <!-- 按模型统计卡片 -->
+      <div class="provider-stats-section" id="providerStatsSection">
+        <div class="section-title">📊 按模型统计</div>
+        <div class="provider-stats-grid" id="providerStatsGrid"></div>
       </div>
 
-      <div class="geo-field" style="margin-bottom:12px;">
-        <label class="geo-label">问题</label>
-        <textarea id="newQuestionText" class="geo-textarea" placeholder="请输入自然问题，例如：长期定投选哪家基金公司？"></textarea>
+      <!-- 操作栏 -->
+      <div class="toolbar" id="toolbar">
+        <input class="search-input" id="searchInput" placeholder="🔍 搜索问题..." />
+        <select id="filterTrack">
+          <option value="">全部赛道</option>
+        </select>
+        <select id="filterIntent">
+          <option value="">全部意图</option>
+        </select>
+        <button class="btn btn-primary" id="btnAddQuestion">➕ 新增问题</button>
+        <button class="btn btn-outline" id="btnRunSelected">▶️ 运行选中</button>
+        <button class="btn btn-warning" id="btnBatchRun">⚡ 批量运行</button>
+        <button class="btn btn-outline btn-sm" id="btnSetApiKey">🔑 API Key</button>
       </div>
 
-      <div style="display:flex; gap:12px; flex-wrap:wrap;">
-        <div class="geo-field small">
-          <label class="geo-label">赛道</label>
-          <input id="newQuestionTrack" class="geo-input" type="text" placeholder="如：定投" />
+      <!-- 批量进度 -->
+      <div class="batch-progress" id="batchProgress">
+        <span style="font-size:14px;">⚙️</span>
+        <div class="bp-bar-wrap">
+          <div class="bp-bar-fill" id="bpBarFill" style="width:0%"></div>
         </div>
-
-        <div class="geo-field small">
-          <label class="geo-label">意图</label>
-          <input id="newQuestionIntent" class="geo-input" type="text" placeholder="如：品牌选择" />
-        </div>
-
-        <div class="geo-field small">
-          <label class="geo-label">人群</label>
-          <input id="newQuestionPersona" class="geo-input" type="text" placeholder="如：理财新手" />
-        </div>
-
-        <div class="geo-field small">
-          <label class="geo-label">优先级</label>
-          <select id="newQuestionPriority" class="geo-select">
-            <option value="high">高</option>
-            <option value="medium" selected>中</option>
-            <option value="low">低</option>
-          </select>
-        </div>
+        <span class="bp-detail" id="bpDetail"></span>
+        <span class="bp-text" id="bpText">0 / 0</span>
       </div>
 
-      <div style="margin-top:16px; display:flex; gap:10px;">
-        <button id="saveQuestionBtn" class="geo-btn primary">保存问题</button>
+      <!-- 问题列表 -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:36px"><input type="checkbox" id="selectAll" /></th>
+              <th>问题</th>
+              <th>赛道</th>
+              <th>意图</th>
+              <th>优先级</th>
+              <th style="min-width:200px">最近运行结果（按模型）</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="emptyState" style="display:none">
+        <div class="empty-icon">📭</div>
+        <div class="empty-text">暂无问题数据，点击"新增问题"开始</div>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- 详情弹窗 -->
-  <div id="detailModal" class="geo-modal">
-    <div class="geo-modal-card">
-      <div class="geo-modal-header">
-        <div class="geo-modal-title">运行详情</div>
-        <button class="geo-btn secondary" onclick="closeDetailModal()">关闭</button>
-      </div>
-
-      <div class="geo-detail-block">
-        <div class="geo-detail-label">问题</div>
-        <div id="detailQuestion" class="geo-detail-content"></div>
-      </div>
-
-      <div class="geo-detail-block">
-        <div class="geo-detail-label">模型 / Provider</div>
-        <div id="detailProvider" class="geo-detail-content"></div>
-      </div>
-
-      <div class="geo-detail-block">
-        <div class="geo-detail-label">识别结果</div>
-        <div id="detailJudge" class="geo-detail-content"></div>
-      </div>
-
-      <div class="geo-detail-block">
-        <div class="geo-detail-label">原始回答</div>
-        <div id="detailResponse" class="geo-detail-content"></div>
-      </div>
+<!-- 运行详情弹窗 -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="detailTitle">运行详情</h3>
+      <button class="modal-close" id="detailClose">&times;</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="detailCloseBtn">关闭</button>
     </div>
   </div>
+</div>
 
-  <script>
-    const GEO_API_KEY_STORAGE = LS_KEYS.geoApiKey;
-    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+<!-- 新增/编辑问题弹窗 -->
+<div class="modal-overlay" id="questionModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="questionModalTitle">新增问题</h3>
+      <button class="modal-close" id="questionClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>问题内容 *</label>
+        <textarea id="qQuestion" placeholder="输入用户可能向AI提出的自然问题..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>赛道</label>
+        <input id="qTrack" placeholder="如：定投、ETF、养老..." />
+      </div>
+      <div class="form-group">
+        <label>意图</label>
+        <select id="qIntent">
+          <option value="">请选择</option>
+          <option value="推荐">推荐</option>
+          <option value="对比">对比</option>
+          <option value="查询">查询</option>
+          <option value="评价">评价</option>
+          <option value="科普">科普</option>
+          <option value="其他">其他</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>人格</label>
+        <input id="qPersona" placeholder="如：小白投资者、资深基民..." />
+      </div>
+      <div class="form-group">
+        <label>优先级</label>
+        <select id="qPriority">
+          <option value="2">中</option>
+          <option value="3">高</option>
+          <option value="1">低</option>
+        </select>
+        <div class="form-hint">高=3, 中=2, 低=1（数据库为整数）</div>
+      </div>
+      <input type="hidden" id="qEditId" value="" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="questionCancel">取消</button>
+      <button class="btn btn-primary" id="questionSave">保存</button>
+    </div>
+  </div>
+</div>
 
-    let questions = [];
-    let providers = [];
-    let latestRows = [];
-    let filteredQuestions = [];
-    let isLoading = false;
-    let stopBatchRequested = false;
+<!-- API Key 弹窗 -->
+<div class="modal-overlay" id="apiKeyModal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <h3>🔑 Ark API Key</h3>
+      <button class="modal-close" id="apiKeyClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>火山引擎 Ark API Key</label>
+        <input id="apiKeyInput" type="password" placeholder="粘贴 Ark API Key..." />
+        <div class="form-hint">Key 仅保存在浏览器本地，不会上传到数据库。</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="apiKeyCancel">取消</button>
+      <button class="btn btn-primary" id="apiKeySave">保存</button>
+    </div>
+  </div>
+</div>
 
-    let batchState = {
-      running: false,
-      total: 0,
-      done: 0,
-      currentQuestion: '',
-      currentProvider: ''
-    };
+<!-- 依赖 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="shared/config.js"></script>
+<script src="shared/nav.js"></script>
 
-    function $(id) {
-      return document.getElementById(id);
+<script>
+(function () {
+'use strict';
+
+// ========== 初始化 Supabase ==========
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const GEO_API_KEY_STORAGE = (window.LS_KEYS && window.LS_KEYS.geoApiKey) || 'geo_ark_api_key';
+
+// ========== 全局状态 ==========
+let allQuestions = [];
+let allProviders = [];
+let latestRows = [];          // 来自 geo_question_provider_latest_runs
+let sourceMatchRules = [];    // 来源匹配规则
+let filteredRows = [];        // 过滤后的行
+
+let batchState = {
+  running: false,
+  total: 0,
+  done: 0,
+  currentQuestion: '',
+  currentProvider: ''
+};
+
+// ========== DOM 引用 ==========
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
+
+// ========== API Key ==========
+function getApiKey() {
+  return localStorage.getItem(GEO_API_KEY_STORAGE) || '';
+}
+
+function setApiKey(key) {
+  localStorage.setItem(GEO_API_KEY_STORAGE, String(key || '').trim());
+}
+
+// ========== 来源字典加载 ==========
+async function buildSourceMatchRules() {
+  try {
+    const { data, error } = await sb
+      .from(window.SUPABASE_GEO_SOURCE_DICT_TABLE || 'geo_source_dict')
+      .select('*')
+      .eq('enabled', true)
+      .order('priority', { ascending: true });
+
+    if (error) {
+      console.warn('加载来源字典失败:', error);
+      return;
     }
 
-    function escapeHtml(str) {
-      return String(str || '').replace(/[&<>"']/g, s => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-      }[s]));
-    }
-
-    function toast(msg) {
-      $('toolbarTip').textContent = msg || '';
-    }
-
-    function mapPriorityToNumber(priority) {
-      const map = {
-      high: 3,
-       medium: 2,
-      low: 1
+    sourceMatchRules = (data || []).map(item => {
+      const aliases = Array.isArray(item.aliases) ? item.aliases : [];
+      const rawKeywords = [item.source_name, item.source_domain, ...aliases];
+      const keywords = rawKeywords
+        .filter(Boolean)
+        .map(k => String(k).toLowerCase().trim())
+        .filter(k => k.length >= 2);
+      return {
+        source_name: item.source_name,
+        source_domain: item.source_domain || '',
+        source_type: item.source_type || '未知',
+        keywords: [...new Set(keywords)]
       };
-     return map[priority] || 2;
+    });
+  } catch (err) {
+    console.warn('构建来源规则失败:', err);
   }
-  function formatPriority(priority) {
-  const map = {
-    3: '高',
-    2: '中',
-    1: '低',
-    high: '高',
-    medium: '中',
-    low: '低'
+}
+
+// ========== 来源提取（规则匹配） ==========
+function extractStructuredSources(answerText) {
+  if (!answerText) return [];
+
+  const text = String(answerText);
+
+  // 兼容 [信息来源] / 【信息来源】
+  const blockMatch = text.match(/[\[【]信息来源[\]】]([\s\S]*)$/);
+  if (!blockMatch) return [];
+
+  const block = blockMatch[1] || '';
+
+  const lines = block
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  const results = [];
+
+  for (const rawLine of lines) {
+    let line = rawLine;
+
+    // 去掉开头的 "- "
+    line = line.replace(/^[-•]\s*/, '');
+
+    // 去掉“来源1：”“来源2:”前缀
+    line = line.replace(/^来源\s*\d+\s*[：:]\s*/, '').trim();
+
+    if (!line) continue;
+
+    // 统一分隔符：把全角竖线替换成半角
+    line = line.replace(/｜/g, '|');
+
+    // 拆分字段
+    let parts = line.split('|').map(x => x.trim()).filter(Boolean);
+
+    if (!parts.length) continue;
+
+    let sourceName = parts[0] || '未知';
+    let sourceDomain = parts[1] || '';
+    let sourceType = parts[2] || '未知';
+
+    // 如果第三段后面还有说明，比如：
+    // 官网（可查询ETF产品列表、规模及流动性）
+    sourceType = sourceType.replace(/（.*?）/g, '').replace(/\(.*?\)/g, '').trim();
+
+    // 如果第二段其实不是域名，而是类型，做容错
+    if (sourceDomain && !looksLikeDomain(sourceDomain) && !sourceType) {
+      sourceType = sourceDomain;
+      sourceDomain = '';
+    }
+
+    // 如果第二段不是域名，但第三段为空，也兜底
+    if (sourceDomain && !looksLikeDomain(sourceDomain) && sourceType === '未知') {
+      sourceType = sourceDomain;
+      sourceDomain = '';
+    }
+const standardized = standardizeSource(
+  sourceName,
+  sourceDomain,
+  sourceType
+);
+
+results.push({
+  source_name: standardized.source_name,
+  source_domain: standardized.source_domain || null,
+  source_type: standardized.source_type,
+  attribution_type: sourceName.includes('综合市场公开信息') || sourceName.includes('模型综合知识')
+    ? 'synthesized'
+    : 'explicit',
+  evidence_text: rawLine,
+  confidence_score: sourceName.includes('综合市场公开信息') || sourceName.includes('模型综合知识')
+    ? 0.40
+    : 0.95,
+  rank_no: results.length + 1
+});
+  }
+
+  return results;
+}
+
+function looksLikeDomain(text) {
+  const t = String(text || '').trim().toLowerCase();
+  if (!t) return false;
+
+  // 简单域名判断
+  return /([a-z0-9-]+\.)+[a-z]{2,}/i.test(t);
+}
+
+function standardizeSource(sourceName, sourceDomain, sourceType) {
+  const name = String(sourceName || '').trim();
+  const domain = String(sourceDomain || '').trim().toLowerCase();
+  const type = String(sourceType || '').trim();
+
+  // 1. 天天基金
+  if (
+    name.includes('天天基金') ||
+    name.includes('东方财富') ||
+    domain.includes('eastmoney.com')
+  ) {
+    return {
+      source_name: '天天基金',
+      source_domain: 'eastmoney.com',
+      source_type: '销售平台'
     };
-  return map[priority] || String(priority || '');
   }
 
-    function formatPct(num) {
-      if (!isFinite(num)) return '0%';
-      return (num * 100).toFixed(1).replace(/\.0$/, '') + '%';
-    }
+  // 2. 汇添富官网
+  if (
+    name.includes('汇添富') ||
+    domain.includes('99fund.com')
+  ) {
+    return {
+      source_name: '汇添富基金官网',
+      source_domain: '99fund.com',
+      source_type: '官网'
+    };
+  }
 
-    function formatDateTime(value) {
-      if (!value) return '-';
-      const d = new Date(value);
-      if (Number.isNaN(d.getTime())) return value;
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      const hh = String(d.getHours()).padStart(2, '0');
-      const mm = String(d.getMinutes()).padStart(2, '0');
-      return `${y}-${m}-${day} ${hh}:${mm}`;
-    }
+  // 3. Wind
+  if (
+    name.toLowerCase().includes('wind') ||
+    domain.includes('wind.com.cn')
+  ) {
+    return {
+      source_name: 'Wind',
+      source_domain: 'wind.com.cn',
+      source_type: '数据平台'
+    };
+  }
 
-    function getSavedApiKey() {
-      return localStorage.getItem(GEO_API_KEY_STORAGE) || '';
-    }
+  // 4. 中国基金业协会
+  if (
+    name.includes('基金业协会') ||
+    name.includes('中基协') ||
+    domain.includes('amac.org.cn')
+  ) {
+    return {
+      source_name: '中基协',
+      source_domain: 'amac.org.cn',
+      source_type: '监管机构'
+    };
+  }
 
-    function setSavedApiKey(v) {
-      localStorage.setItem(GEO_API_KEY_STORAGE, v || '');
-    }
+  // 5. 中国证监会
+  if (
+    name.includes('证监会') ||
+    domain.includes('csrc.gov.cn')
+  ) {
+    return {
+      source_name: '中国证监会',
+      source_domain: 'csrc.gov.cn',
+      source_type: '监管机构'
+    };
+  }
 
-    function buildUniqueOptions(list, field) {
-      const values = [...new Set(list.map(x => (x[field] || '').trim()).filter(Boolean))];
-      return values.sort((a, b) => a.localeCompare(b, 'zh-CN'));
-    }
+  // 6. 上交所
+  if (
+    name.includes('上海证券交易所') ||
+    domain.includes('sse.com.cn')
+  ) {
+    return {
+      source_name: '上海证券交易所',
+      source_domain: 'sse.com.cn',
+      source_type: '监管机构'
+    };
+  }
 
-    function fillFilterOptions() {
-      const tracks = buildUniqueOptions(questions, 'track');
-      const intents = buildUniqueOptions(questions, 'intent');
+  // 7. 深交所
+  if (
+    name.includes('深圳证券交易所') ||
+    domain.includes('szse.cn')
+  ) {
+    return {
+      source_name: '深圳证券交易所',
+      source_domain: 'szse.cn',
+      source_type: '监管机构'
+    };
+  }
 
-      $('trackFilter').innerHTML = '<option value="">全部赛道</option>' +
-        tracks.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
+  // 8. 易方达官网
+  if (
+    name.includes('易方达') ||
+    domain.includes('efunds.com.cn')
+  ) {
+    return {
+      source_name: '易方达基金官网',
+      source_domain: 'efunds.com.cn',
+      source_type: '官网'
+    };
+  }
 
-      $('intentFilter').innerHTML = '<option value="">全部意图</option>' +
-        intents.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
-    }
+  // 9. 华夏官网
+  if (
+    name.includes('华夏基金') ||
+    domain.includes('chinaamc.com')
+  ) {
+    return {
+      source_name: '华夏基金官网',
+      source_domain: 'chinaamc.com',
+      source_type: '官网'
+    };
+  }
 
-    function getGroupedLatestMap() {
-      const map = {};
-      for (const row of latestRows) {
-        const qid = row.question_id;
-        const provider = row.provider || '';
-        if (!map[qid]) map[qid] = {};
-        if (provider) map[qid][provider] = row;
+  // 默认返回原值
+  return {
+    source_name: name || '未知',
+    source_domain: domain || null,
+    source_type: normalizeSourceType(type)
+  };
+}
+
+function normalizeSourceType(type) {
+  const t = String(type || '').trim();
+
+  if (!t) return '未知';
+
+  if (t.includes('官网')) return '官网';
+  if (t.includes('销售平台')) return '销售平台';
+  if (t.includes('数据平台')) return '数据平台';
+  if (t.includes('新闻')) return '新闻媒体';
+  if (t.includes('社区')) return '社区论坛';
+  if (t.includes('百科')) return '百科';
+  if (t.includes('监管') || t.includes('交易所')) return '监管机构';
+  if (t.includes('应用商店')) return '应用商店';
+  if (t.includes('未知')) return '未知';
+
+  return '未知';
+}
+
+function extractSourcesFromAnswer(answerText) {
+  // 1. 先解析结构化来源区块
+  const structured = extractStructuredSources(answerText);
+  if (structured.length) return structured;
+
+  // 2. 再做关键词扫描（你原来的规则）
+  const explicit = extractKeywordSources(answerText);
+  if (explicit.length) return explicit;
+
+  // 3. 最后兜底
+  return [{
+    source_name: '模型综合知识',
+    source_domain: '',
+    source_type: '未知',
+    attribution_type: 'synthesized',
+    evidence_text: '回答中未出现可识别的外部来源结构、名称或域名。',
+    confidence_score: 0.30,
+    rank_no: 1
+  }];
+}
+// ========== 模型调用（带来源要求） ==========
+async function callProvider(provider, question, apiKey) {
+  const baseUrl = (provider.base_url || '').replace(/\/$/, '');
+  const url = baseUrl + '/chat/completions';
+
+  const systemPrompt = `
+你是基金投研与财富管理领域助手。请回答用户问题，并严格遵守以下规则：
+
+【回答规则】
+1. 先直接给结论，再补充理由。
+2. 尽量给出具体基金公司、基金品牌或产品名称。
+3. 如果涉及数据、排名、产品信息、公司信息、监管政策、平台信息等，请尽量说明来源。
+4. 回答最后必须追加一个固定板块，格式如下：
+
+【信息来源】
+- 来源1：来源名称｜来源域名｜来源类型
+- 来源2：来源名称｜来源域名｜来源类型
+
+5. 如果无法明确指出具体外部来源，也必须保留这个板块，并写：
+【信息来源】
+- 来源1：综合市场公开信息｜｜未知
+
+6. 不要省略“【信息来源】”板块。
+7. 不要输出 JSON，不要输出 Markdown 表格，使用自然语言正文 + 固定来源区块即可。
+
+【来源类型可选值】
+官网 / 销售平台 / 数据平台 / 新闻媒体 / 社区论坛 / 百科 / 监管机构 / 未知
+  `.trim();
+
+  const userPrompt = `
+${question}
+
+请务必在回答最后输出“【信息来源】”板块，且至少填写 1 条来源。
+  `.trim();
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + apiKey
+    },
+    body: JSON.stringify({
+      model: provider.model_name,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.4
+    })
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error('调用失败: ' + resp.status + ' ' + text);
+  }
+
+  const json = await resp.json();
+  return json?.choices?.[0]?.message?.content || '';
+}
+// ========== 品牌提及判断 ==========
+function judgeTTF(rawResponse) {
+  if (!rawResponse) {
+    return { is_mentioned: false, is_first_mentioned: false, is_top_recommended: false, confidence_score: 0 };
+  }
+
+  const text = String(rawResponse);
+  const textLower = text.toLowerCase();
+
+  // 品牌关键词（含别名）
+  const brandPatterns = [
+    { name: '汇添富', patterns: ['汇添富', '添富基金', '99fund', 'htf'] },
+    { name: '易方达', patterns: ['易方达'] },
+    { name: '华夏', patterns: ['华夏基金', '华夏'] },
+    { name: '广发', patterns: ['广发基金', '广发'] },
+    { name: '富国', patterns: ['富国基金', '富国'] },
+    { name: '中欧', patterns: ['中欧基金', '中欧'] },
+    { name: '南方', patterns: ['南方基金'] },
+    { name: '嘉实', patterns: ['嘉实基金', '嘉实'] },
+    { name: '博时', patterns: ['博时基金', '博时'] },
+    { name: '招商', patterns: ['招商基金'] },
+    { name: '天弘', patterns: ['天弘基金', '天弘'] },
+    { name: '景顺长城', patterns: ['景顺长城'] },
+    { name: '兴证全球', patterns: ['兴证全球', '兴全'] },
+    { name: '鹏华', patterns: ['鹏华基金', '鹏华'] },
+    { name: '华安', patterns: ['华安基金', '华安'] }
+  ];
+
+  // 找到所有品牌在文本中的首次出现位置
+  const mentions = [];
+  for (const brand of brandPatterns) {
+    let firstIdx = Infinity;
+    for (const pat of brand.patterns) {
+      const idx = textLower.indexOf(pat.toLowerCase());
+      if (idx >= 0 && idx < firstIdx) {
+        firstIdx = idx;
       }
-      return map;
     }
+    if (firstIdx < Infinity) {
+      mentions.push({ name: brand.name, firstIdx });
+    }
+  }
 
-    function getFilteredQuestions() {
-      const kw = ($('searchInput').value || '').trim().toLowerCase();
-      const track = $('trackFilter').value || '';
-      const intent = $('intentFilter').value || '';
+  // 按首次出现位置排序
+  mentions.sort((a, b) => a.firstIdx - b.firstIdx);
 
-      return questions.filter(q => {
-        const okKw = !kw || String(q.question || '').toLowerCase().includes(kw);
-        const okTrack = !track || (q.track || '') === track;
-        const okIntent = !intent || (q.intent || '') === intent;
-        return okKw && okTrack && okIntent;
+  const isMentioned = mentions.some(m => m.name === '汇添富');
+  const isFirstMentioned = mentions.length > 0 && mentions[0].name === '汇添富';
+
+  // 推荐强度判断
+  let isTopRecommended = false;
+  let confidence = 0;
+
+  if (isMentioned) {
+    confidence += 0.4;
+
+    // 检查是否有强推荐词
+    const recommendPatterns = [
+      /优先.*汇添富/,
+      /推荐.*汇添富/,
+      /首选.*汇添富/,
+      /汇添富.*值得/,
+      /汇添富.*更好/,
+      /汇添富.*优秀/,
+      /汇添富.*建议/,
+      /看好.*汇添富/,
+      /汇添富.*优势/,
+      /重点.*汇添富/,
+    ];
+
+    for (const re of recommendPatterns) {
+      if (re.test(text)) {
+        isTopRecommended = true;
+        confidence += 0.4;
+        break;
+      }
+    }    if (isFirstMentioned) {
+      confidence += 0.2;
+    }
+  }
+
+  confidence = Math.min(1, confidence);
+
+  return {
+    is_mentioned: isMentioned,
+    is_first_mentioned: isFirstMentioned,
+    is_top_recommended: isTopRecommended,
+    confidence_score: Math.round(confidence * 100) / 100
+  };
+}
+
+// ========== 数据库操作 ==========
+async function insertRunRecord(payload) {
+  const table = window.SUPABASE_GEO_RUNS_TABLE || 'geo_runs';
+  const { data, error } = await sb.from(table).insert(payload).select().single();
+  if (error) throw error;
+  return data;
+}
+
+async function insertRunSources(runId, questionObj, providerCode, modelName, sourceItems) {
+  if (!Array.isArray(sourceItems) || !sourceItems.length) return;
+
+  const table = window.SUPABASE_GEO_RUN_SOURCES_TABLE || 'geo_run_sources';
+  const rows = sourceItems
+    .filter(item => item && item.source_name)
+    .map(item => ({
+      run_id: runId,
+      question_id: questionObj.id,
+      provider: providerCode,
+      model_name: modelName,
+      source_name: String(item.source_name || '').trim(),
+      source_domain: String(item.source_domain || '').trim() || null,
+      source_type: String(item.source_type || '未知').trim() || '未知',
+      attribution_type: String(item.attribution_type || 'inferred').trim() || 'inferred',
+      evidence_text: String(item.evidence_text || '').trim() || null,
+      confidence_score: Number(item.confidence_score || 0),
+      rank_no: Number(item.rank_no || 0) || null
+    }));
+
+  if (!rows.length) return;
+
+  const { error } = await sb.from(table).insert(rows);
+  if (error) throw error;
+}
+
+async function saveQuestion(dataObj) {
+  const table = window.SUPABASE_GEO_QUESTIONS_TABLE || 'geo_questions';
+  const editId = dataObj.id;
+
+  const payload = {
+    question: dataObj.question,
+    track: dataObj.track || null,
+    intent: dataObj.intent || null,
+    persona: dataObj.persona || null,
+    priority: parseInt(dataObj.priority, 10) || 2,
+    status: dataObj.status || 'active'
+  };
+
+  if (editId) {
+    const { error } = await sb.from(table).update(payload).eq('id', editId);
+    if (error) throw error;
+  } else {
+    const { error } = await sb.from(table).insert(payload);
+    if (error) throw error;
+  }
+}
+
+// ========== 单题 × 单模型运行 ==========
+async function runOneQuestionWithProvider(questionObj, provider, apiKey) {
+  const questionText = questionObj.question || '';
+  let rawResponse = '';
+  let judge = {
+    is_mentioned: false,
+    is_first_mentioned: false,
+    is_top_recommended: false,
+    confidence_score: 0
+  };
+  let runStatus = 'success';
+  let insertedRun = null;
+
+  try {
+    rawResponse = await callProvider(provider, questionText, apiKey);
+    judge = judgeTTF(rawResponse);
+  } catch (err) {
+    runStatus = 'failed';
+    rawResponse = String(err.message || err || 'unknown error');
+  }
+
+  // 写入 geo_runs
+  insertedRun = await insertRunRecord({
+    question_id: questionObj.id,
+    provider: provider.provider_code,
+    model_name: provider.model_name,
+    raw_response: rawResponse,
+    is_mentioned: !!judge.is_mentioned,
+    is_first_mentioned: !!judge.is_first_mentioned,
+    is_top_recommended: !!judge.is_top_recommended,
+    confidence_score: judge.confidence_score || 0,
+    run_status: runStatus,
+    run_time: new Date().toISOString()
+  });
+
+  // 来源提取 + 写入
+  if (runStatus === 'success' && rawResponse.trim()) {
+    const sourceItems = extractSourcesFromAnswer(rawResponse);
+
+    if (!sourceItems.length) {
+      sourceItems.push({
+        source_name: '模型综合知识',
+        source_domain: '',
+        source_type: '未知',
+        attribution_type: 'synthesized',
+        evidence_text: '回答中未出现可识别的外部来源名称或域名。',
+        confidence_score: 0.30,
+        rank_no: 1
       });
     }
 
-    function calcOverallStats(groupedMap, questionList) {
-      let total = 0;
-      let mentioned = 0;
-      let firstMentioned = 0;
-      let topRecommended = 0;
+    try {
+      await insertRunSources(
+        insertedRun.id,
+        questionObj,
+        provider.provider_code,
+        provider.model_name,
+        sourceItems
+      );
+    } catch (attrErr) {
+      console.warn('来源写入失败:', attrErr);
+    }
+  }
 
-      for (const q of questionList) {
-        const providerMap = groupedMap[q.id] || {};
-        const rows = Object.values(providerMap).filter(Boolean);
+  return insertedRun;
+}
 
-        if (!rows.length) continue;
+// ========== 优先级格式化 ==========
+function mapPriorityToNumber(p) {
+  const map = { high: 3, medium: 2, low: 1, '高': 3, '中': 2, '低': 1 };
+  if (map[p] !== undefined) return map[p];
+  const n = parseInt(p, 10);
+  return isNaN(n) ? 2 : n;
+}
 
-        for (const row of rows) {
-          if (!row.provider) continue;
-          total += 1;
-          if (row.run_status === 'success' && row.is_mentioned) mentioned += 1;
-          if (row.run_status === 'success' && row.is_first_mentioned) firstMentioned += 1;
-          if (row.run_status === 'success' && row.is_top_recommended) topRecommended += 1;
-        }
-      }
+function formatPriority(p) {
+  const map = { 3: '🔴 高', 2: '🟡 中', 1: '🟢 低', high: '🔴 高', medium: '🟡 中', low: '🟢 低' };
+  return map[p] || String(p || '—');
+}
 
-      return {
-        total,
-        mentioned,
-        firstMentioned,
-        topRecommended
+// ========== 数据加载 ==========
+async function loadData() {
+  // 并行加载
+  const [questionsRes, providersRes, latestRes] = await Promise.all([
+    sb.from(window.SUPABASE_GEO_QUESTIONS_TABLE || 'geo_questions').select('*').order('id', { ascending: false }),
+    sb.from(window.SUPABASE_GEO_PROVIDERS_TABLE || 'geo_providers').select('*').eq('enabled', true).order('sort_order', { ascending: true }),
+    sb.from(window.SUPABASE_GEO_PROVIDER_LATEST_VIEW || 'geo_question_provider_latest_runs').select('*').order('question_id', { ascending: false })
+  ]);
+
+  if (questionsRes.error) console.error('加载问题失败:', questionsRes.error);
+  if (providersRes.error) console.error('加载模型配置失败:', providersRes.error);
+  if (latestRes.error) console.error('加载最近运行结果失败:', latestRes.error);
+
+  allQuestions = questionsRes.data || [];
+  allProviders = providersRes.data || [];
+  latestRows = latestRes.data || [];
+
+  applyFilters();
+  renderStats();
+  renderProviderStats();
+  renderTable();
+  renderFilterOptions();
+}
+
+// ========== 筛选 ==========
+function applyFilters() {
+  const search = ($('#searchInput')?.value || '').toLowerCase().trim();
+  const track = $('#filterTrack')?.value || '';
+  const intent = $('#filterIntent')?.value || '';
+
+  // 先按问题筛选
+  let matchedQuestionIds = new Set();
+  for (const q of allQuestions) {
+    let match = true;
+    if (search) {
+      const qText = (q.question || '').toLowerCase();
+      if (!qText.includes(search)) match = false;
+    }
+    if (track && q.track !== track) match = false;
+    if (intent && q.intent !== intent) match = false;
+    if (match) matchedQuestionIds.add(q.id);
+  }
+
+  // 从 latestRows 过滤
+  filteredRows = latestRows.filter(r => matchedQuestionIds.has(r.question_id));
+}
+
+// ========== 渲染统计卡片 ==========
+function renderStats() {
+  const valid = latestRows.filter(r => r.run_status === 'success');
+  const questionIds = [...new Set(valid.map(r => r.question_id))];
+  const totalQuestions = allQuestions.length;
+  const testedQuestions = questionIds.length;
+  const mentionedQuestions = [...new Set(valid.filter(r => r.is_mentioned).map(r => r.question_id))].length;
+  const firstMentionQuestions = [...new Set(valid.filter(r => r.is_first_mentioned).map(r => r.question_id))].length;
+
+  const mentionRate = testedQuestions > 0 ? ((mentionedQuestions / testedQuestions) * 100).toFixed(1) : '—';
+  const firstMentionRate = testedQuestions > 0 ? ((firstMentionQuestions / testedQuestions) * 100).toFixed(1) : '—';
+
+  const totalRuns = valid.length;
+  const mentionedRuns = valid.filter(r => r.is_mentioned).length;
+  const runMentionRate = totalRuns > 0 ? ((mentionedRuns / totalRuns) * 100).toFixed(1) : '—';
+
+  const statsGrid = $('#statsGrid');
+  statsGrid.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">问题总数</div>
+      <div class="stat-value">${totalQuestions}</div>
+      <div class="stat-sub">已测 ${testedQuestions} 题</div>
+    </div>
+    <div class="stat-card accent">
+      <div class="stat-label">提及率（按题）</div>
+      <div class="stat-value">${mentionRate}%</div>
+      <div class="stat-sub">${mentionedQuestions} / ${testedQuestions} 题</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">首位提及率（按题）</div>
+      <div class="stat-value">${firstMentionRate}%</div>
+      <div class="stat-sub">${firstMentionQuestions} / ${testedQuestions} 题</div>
+    </div>
+    <div class="stat-card purple">
+      <div class="stat-label">提及率（按次）</div>
+      <div class="stat-value">${runMentionRate}%</div>
+      <div class="stat-sub">${mentionedRuns} / ${totalRuns} 次运行</div>
+    </div>
+    <div class="stat-card yellow">
+      <div class="stat-label">启用模型数</div>
+      <div class="stat-value">${allProviders.length}</div>
+      <div class="stat-sub">${allProviders.map(p => p.provider_code).join(', ') || '—'}</div>
+    </div>
+  `;
+}
+
+// ========== 渲染按模型统计 ==========
+function renderProviderStats() {
+  const valid = latestRows.filter(r => r.provider && r.run_status === 'success');
+  const grouped = {};
+
+  for (const row of valid) {
+    const key = row.provider || 'unknown';
+    if (!grouped[key]) {
+      grouped[key] = {
+        provider: row.provider || '',
+        modelName: row.model_name || '',
+        total: 0,
+        mentioned: 0,
+        firstMentioned: 0,
+        topRecommended: 0
       };
     }
+    grouped[key].total += 1;
+    if (row.is_mentioned) grouped[key].mentioned += 1;
+    if (row.is_first_mentioned) grouped[key].firstMentioned += 1;
+    if (row.is_top_recommended) grouped[key].topRecommended += 1;
+  }
 
-    function calcProviderStats() {
-      const valid = latestRows.filter(x => x.provider);
-      const grouped = {};
+  const list = Object.values(grouped).sort((a, b) => a.provider.localeCompare(b.provider));
 
-      for (const row of valid) {
-        const key = row.provider || 'unknown';
-        if (!grouped[key]) {
-          grouped[key] = {
-            provider: row.provider || '',
-            modelName: row.model_name || '',
-            total: 0,
-            mentioned: 0,
-            firstMentioned: 0,
-            topRecommended: 0,
-            failed: 0
-          };
-        }
-
-        grouped[key].total += 1;
-
-        if (row.run_status !== 'success') {
-          grouped[key].failed += 1;
-          continue;
-        }
-
-        if (row.is_mentioned) grouped[key].mentioned += 1;
-        if (row.is_first_mentioned) grouped[key].firstMentioned += 1;
-        if (row.is_top_recommended) grouped[key].topRecommended += 1;
-      }
-
-      return Object.values(grouped).sort((a, b) => (a.provider || '').localeCompare(b.provider || '', 'zh-CN'));
-    }
-
-    function renderStats() {
-      const groupedMap = getGroupedLatestMap();
-      const stats = calcOverallStats(groupedMap, filteredQuestions);
-
-      $('statQuestions').textContent = String(filteredQuestions.length);
-      $('statMentionRate').textContent = stats.total ? formatPct(stats.mentioned / stats.total) : '0%';
-      $('statFirstRate').textContent = stats.total ? formatPct(stats.firstMentioned / stats.total) : '0%';
-      $('statTopRate').textContent = stats.total ? formatPct(stats.topRecommended / stats.total) : '0%';
-
-      const providerStats = calcProviderStats();
-      const wrap = $('providerStats');
-
-      if (!providerStats.length) {
-        wrap.innerHTML = '<div class="geo-card geo-empty" style="grid-column:1/-1;">暂无模型运行数据</div>';
-        return;
-      }
-
-      wrap.innerHTML = providerStats.map(item => {
-        const mentionRate = item.total ? formatPct(item.mentioned / item.total) : '0%';
-        const firstRate = item.total ? formatPct(item.firstMentioned / item.total) : '0%';
-        const topRate = item.total ? formatPct(item.topRecommended / item.total) : '0%';
-
-        return `
-          <div class="geo-card geo-provider-card">
-            <div class="geo-provider-name">${escapeHtml(item.provider || '-')}</div>
-            <div class="geo-provider-model">${escapeHtml(item.modelName || '-')}</div>
-
-            <div class="geo-provider-metrics">
-              <div class="geo-mini-metric">
-                <div class="geo-mini-label">样本数</div>
-                <div class="geo-mini-value">${item.total}</div>
-              </div>
-              <div class="geo-mini-metric">
-                <div class="geo-mini-label">提及率</div>
-                <div class="geo-mini-value">${mentionRate}</div>
-              </div>
-              <div class="geo-mini-metric">
-                <div class="geo-mini-label">首位提及率</div>
-                <div class="geo-mini-value">${firstRate}</div>
-              </div>
-              <div class="geo-mini-metric">
-                <div class="geo-mini-label">重点推荐率</div>
-                <div class="geo-mini-value">${topRate}</div>
-              </div>
-            </div>
-
-            <div class="geo-stat-sub" style="margin-top:10px;">
-              失败/异常：${item.failed}
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function resultBadges(row) {
-      if (!row || !row.provider) {
-        return '<span class="geo-badge gray">暂无结果</span>';
-      }
-
-      if (row.run_status !== 'success') {
-        return `
-          <span class="geo-badge red">运行失败</span>
-          <span class="geo-badge gray">${escapeHtml(row.run_status || 'failed')}</span>
-        `;
-      }
-
-      const arr = [];
-      arr.push(row.is_mentioned
-        ? '<span class="geo-badge green">已提及</span>'
-        : '<span class="geo-badge red">未提及</span>');
-
-      if (row.is_first_mentioned) {
-        arr.push('<span class="geo-badge blue">首位提及</span>');
-      }
-
-      if (row.is_top_recommended) {
-        arr.push('<span class="geo-badge yellow">重点推荐</span>');
-      }
-
-      return arr.join('');
-    }
-
-    function renderTable() {
-  const tbody = $('questionTableBody');
-  const groupedMap = getGroupedLatestMap();
-
-  if (!filteredQuestions.length) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="4">
-          <div class="geo-empty">暂无符合条件的问题</div>
-        </td>
-      </tr>
-    `;
+  const grid = $('#providerStatsGrid');
+  if (!list.length) {
+    grid.innerHTML = '<div style="color:var(--geo-text-muted);font-size:13px;padding:12px">暂无运行数据</div>';
     return;
   }
 
-  tbody.innerHTML = filteredQuestions.map(q => {
-    const providerMap = groupedMap[q.id] || {};
-    const resultHtml = providers.map(p => {
-      const row = providerMap[p.provider_code];
-      return `
-        <div class="geo-result-item">
-          <div class="geo-result-top">
-            <div>
-              <div class="geo-result-provider">${escapeHtml(p.provider_name || p.provider_code)}</div>
-              <div class="geo-result-model">${escapeHtml(p.model_name || '-')}</div>
-            </div>
-            <div class="geo-result-meta">
-              ${row?.run_time ? formatDateTime(row.run_time) : '未运行'}
-            </div>
-          </div>
-          <div>${resultBadges(row)}</div>
-          <div class="geo-inline-actions" style="margin-top:8px;">
-            <button class="geo-link-btn" onclick="runSingleQuestion('${q.id}', '${p.provider_code}')">运行该模型</button>
-            ${row?.run_id ? `<button class="geo-link-btn" onclick="showDetailByRunId('${row.run_id}')">查看详情</button>` : ''}
-          </div>
-        </div>
-      `;
-    }).join('');
-
+  grid.innerHTML = list.map(p => {
+    const mr = p.total > 0 ? ((p.mentioned / p.total) * 100).toFixed(1) : '—';
+    const fmr = p.total > 0 ? ((p.firstMentioned / p.total) * 100).toFixed(1) : '—';
+    const tr = p.total > 0 ? ((p.topRecommended / p.total) * 100).toFixed(1) : '—';
     return `
-      <tr>
-        <td>
-          <div class="geo-question-text">${escapeHtml(q.question || '')}</div>
-          <div class="geo-subtext">创建时间：${formatDateTime(q.created_at)}</div>
-        </td>
-        <td>
-          <div><span class="geo-badge gray">${escapeHtml(q.track || '未分类')}</span></div>
-          <div><span class="geo-badge gray">${escapeHtml(q.intent || '未标注')}</span></div>
-          ${q.persona ? `<div><span class="geo-badge gray">${escapeHtml(q.persona)}</span></div>` : ''}
-          ${q.priority !== null && q.priority !== undefined && q.priority !== ''
-            ? `<div><span class="geo-badge gray">优先级：${escapeHtml(formatPriority(q.priority))}</span></div>`
-            : ''}
-        </td>
-        <td>
-          <div class="geo-result-list">${resultHtml || '<span class="geo-badge gray">暂无模型</span>'}</div>
-        </td>
-        <td>
-          <div class="geo-inline-actions">
-            <button class="geo-btn secondary" onclick="runQuestionAllProviders('${q.id}')">运行全部模型</button>
-          </div>
-        </td>
-      </tr>
-    `;
+    <div class="provider-stat-card">
+      <div class="ps-header">
+        <span class="ps-name">${escHtml(p.provider)}</span>
+        <span class="ps-model">${escHtml(p.modelName)}</span>
+      </div>
+      <div class="ps-metrics">
+        <div class="ps-metric">
+          <div class="ps-val">${p.total}</div>
+          <div class="ps-lbl">运行次数</div>
+        </div>
+        <div class="ps-metric highlight">
+          <div class="ps-val">${mr}%</div>
+          <div class="ps-lbl">提及率</div>
+        </div>
+        <div class="ps-metric">
+          <div class="ps-val">${fmr}%</div>
+          <div class="ps-lbl">首位提及</div>
+        </div>
+      </div>
+    </div>`;
   }).join('');
 }
 
-    function renderAll() {
-      filteredQuestions = getFilteredQuestions();
-      renderStats();
-      renderTable();
-    }
+// ========== 渲染表格 ==========
+function renderTable() {
+  const tbody = $('#tableBody');
+  const emptyState = $('#emptyState');
 
-    function updateBatchProgress(done, total, questionText = '', providerText = '') {
-      batchState.done = done;
-      batchState.total = total;
-      batchState.currentQuestion = questionText || '';
-      batchState.currentProvider = providerText || '';
-
-      const visible = batchState.running || total > 0;
-      $('batchProgressCard').style.display = visible ? 'block' : 'none';
-
-      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-      $('batchProgressText').textContent = `${done} / ${total}`;
-      $('batchProgressInner').style.width = `${pct}%`;
-      $('batchProgressDetail').textContent =
-        questionText || providerText
-          ? `当前：${questionText || '-'}${providerText ? ' ｜ 模型：' + providerText : ''}`
-          : '准备中...';
-    }
-
-    function resetBatchProgress() {
-      batchState = {
-        running: false,
-        total: 0,
-        done: 0,
-        currentQuestion: '',
-        currentProvider: ''
-      };
-      updateBatchProgress(0, 0, '', '');
-      $('batchProgressCard').style.display = 'none';
-    }
-
-    function setBatchRunning(flag) {
-      batchState.running = flag;
-      $('batchRunBtn').disabled = flag;
-      $('stopBatchBtn').disabled = !flag;
-    }
-
-    async function loadQuestions() {
-      const { data, error } = await sb
-        .from(SUPABASE_GEO_QUESTIONS_TABLE)
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      questions = data || [];
-    }
-
-    async function loadProviders() {
-      const { data, error } = await sb
-        .from(SUPABASE_GEO_PROVIDERS_TABLE)
-        .select('*')
-        .eq('enabled', true)
-        .order('sort_order', { ascending: true });
-
-      if (error) throw error;
-      providers = data || [];
-    }
-
-    async function loadLatestRuns() {
-      const { data, error } = await sb
-        .from(SUPABASE_GEO_PROVIDER_LATEST_VIEW)
-        .select('*')
-        .order('question_created_at', { ascending: false });
-
-      if (error) throw error;
-      latestRows = data || [];
-    }
-
-    async function refreshData(silent = false) {
-      try {
-        isLoading = true;
-        if (!silent) toast('正在刷新数据...');
-        await Promise.all([
-          loadQuestions(),
-          loadProviders(),
-          loadLatestRuns()
-        ]);
-        fillFilterOptions();
-        renderAll();
-        if (!silent) toast(`刷新完成：${questions.length} 个问题，${providers.length} 个模型`);
-      } catch (err) {
-        console.error(err);
-        toast('刷新失败：' + (err.message || err));
-      } finally {
-        isLoading = false;
-      }
-    }
-
-    async function saveQuestion() {
-  const question = $('newQuestionText').value.trim();
-  const track = $('newQuestionTrack').value.trim();
-  const intent = $('newQuestionIntent').value.trim();
-  const persona = $('newQuestionPersona').value.trim();
-  const priority = $('newQuestionPriority').value;
-
-  if (!question) {
-    alert('请输入问题');
+  if (!filteredRows.length && !allQuestions.length) {
+    tbody.innerHTML = '';
+    emptyState.style.display = 'block';
     return;
   }
 
-  const payload = {
+  emptyState.style.display = 'none';
+
+  // 按问题分组
+  const questionMap = {};
+  for (const q of allQuestions) {
+    questionMap[q.id] = {
+      id: q.id,
+      question: q.question || '',
+      track: q.track || '',
+      intent: q.intent || '',
+      persona: q.persona || '',
+      priority: q.priority,
+      status: q.status || 'active',
+      runs: [] // { provider, model_name, is_mentioned, is_first_mentioned, run_status, run_id, run_time }
+    };
+  }
+
+  for (const row of filteredRows) {
+    if (questionMap[row.question_id]) {
+      questionMap[row.question_id].runs.push({
+        provider: row.provider || '',
+        model_name: row.model_name || '',
+        is_mentioned: row.is_mentioned,
+        is_first_mentioned: row.is_first_mentioned,
+        is_top_recommended: row.is_top_recommended,
+        run_status: row.run_status || '',
+        run_id: row.run_id,
+        run_time: row.run_time || '',
+        raw_response: row.raw_response || ''
+      });
+    }
+  }
+
+  // 排序：有 run 的优先，然后按 priority 降序
+  const list = Object.values(questionMap).sort((a, b) => {
+    const aHasRun = a.runs.length > 0 ? 1 : 0;
+    const bHasRun = b.runs.length > 0 ? 1 : 0;
+    if (aHasRun !== bHasRun) return bHasRun - aHasRun;
+    return (b.priority || 0) - (a.priority || 0);
+  });
+
+  tbody.innerHTML = list.map(q => {
+    // 按 provider 排序展示 runs
+    const sortedRuns = q.runs.sort((a, b) => (a.provider || '').localeCompare(b.provider || ''));
+
+    const runBadges = sortedRuns.map(r => {
+      if (r.run_status !== 'success') {
+        return `<span class="badge badge-pending" title="${escHtml(r.provider)}">⚠️ ${escHtml(r.provider)}</span>`;
+      }
+      if (r.is_mentioned) {
+        return `<span class="badge badge-mentioned" title="${escHtml(r.provider)} / ${escHtml(r.model_name)}">✅ ${escHtml(r.provider)}</span>`;
+      }
+      return `<span class="badge badge-not-mentioned" title="${escHtml(r.provider)} / ${escHtml(r.model_name)}">❌ ${escHtml(r.provider)}</span>`;
+    }).join(' ');
+
+    const runCell = runBadges || '<span style="color:var(--geo-text-muted);font-size:12px">未运行</span>';
+
+    return `
+    <tr>
+      <td><input type="checkbox" class="row-check" data-qid="${q.id}" /></td>
+      <td>
+        <div style="font-weight:500;color:var(--geo-text-primary);margin-bottom:2px">${escHtml(q.question)}</div>
+        ${q.persona ? `<div style="font-size:11px;color:var(--geo-text-muted)">👤 ${escHtml(q.persona)}</div>` : ''}
+      </td>
+      <td>${q.track ? `<span class="badge badge-track">${escHtml(q.track)}</span>` : '—'}</td>
+      <td>${escHtml(q.intent || '—')}</td>
+      <td>${formatPriority(q.priority)}</td>
+      <td>${runCell}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-outline btn-sm btn-run-one" data-qid="${q.id}" title="对本题运行所有模型">▶️ 运行</button>
+        <button class="btn btn-outline btn-sm btn-view-detail" data-qid="${q.id}">📋 详情</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // 绑定事件
+  tbody.querySelectorAll('.btn-run-one').forEach(btn => {
+    btn.addEventListener('click', () => runSingleQuestion(parseInt(btn.dataset.qid)));
+  });
+  tbody.querySelectorAll('.btn-view-detail').forEach(btn => {
+    btn.addEventListener('click', () => showDetail(parseInt(btn.dataset.qid)));
+  });
+}
+
+// ========== 筛选下拉选项 ==========
+function renderFilterOptions() {
+  const tracks = [...new Set(allQuestions.map(q => q.track).filter(Boolean))].sort();
+  const intents = [...new Set(allQuestions.map(q => q.intent).filter(Boolean))].sort();
+
+  const trackSelect = $('#filterTrack');
+  const currentTrack = trackSelect.value;
+  trackSelect.innerHTML = '<option value="">全部赛道</option>' +
+    tracks.map(t => `<option value="${escHtml(t)}" ${t === currentTrack ? 'selected' : ''}>${escHtml(t)}</option>`).join('');
+
+  const intentSelect = $('#filterIntent');
+  const currentIntent = intentSelect.value;
+  intentSelect.innerHTML = '<option value="">全部意图</option>' +
+    intents.map(i => `<option value="${escHtml(i)}" ${i === currentIntent ? 'selected' : ''}>${escHtml(i)}</option>`).join('');
+}
+
+// ========== 运行单个问题（所有模型） ==========
+async function runSingleQuestion(qid) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    alert('请先设置 Ark API Key');
+    openApiKeyModal();
+    return;
+  }
+
+  if (batchState.running) {
+    alert('批量运行进行中，请等待完成');
+    return;
+  }
+
+  const qObj = allQuestions.find(q => q.id === qid);
+  if (!qObj) return;
+
+  const providers = allProviders;
+  if (!providers.length) {
+    alert('没有启用的模型配置');
+    return;
+  }
+
+  batchState.running = true;
+  batchState.total = providers.length;
+  batchState.done = 0;
+  showBatchProgress(true);
+  updateBatchProgressUI(0, providers.length, qObj.question, '');
+
+  for (const provider of providers) {
+    batchState.currentProvider = provider.provider_code;
+    updateBatchProgressUI(batchState.done, providers.length, qObj.question, provider.provider_code);
+    try {
+      await runOneQuestionWithProvider(qObj, provider, apiKey);
+    } catch (err) {
+      console.error('运行失败:', provider.provider_code, err);
+    }
+    batchState.done += 1;
+    updateBatchProgressUI(batchState.done, providers.length, qObj.question, provider.provider_code);
+  }
+
+  batchState.running = false;
+  showBatchProgress(false);
+  await loadData();
+}
+
+// ========== 批量运行（全部问题 × 全部模型） ==========
+async function batchRunAll() {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    alert('请先设置 Ark API Key');
+    openApiKeyModal();
+    return;
+  }
+
+  if (batchState.running) {
+    alert('批量运行进行中');
+    return;
+  }
+
+  const questions = allQuestions.filter(q => q.status !== 'inactive');
+  const providers = allProviders;
+
+  if (!questions.length || !providers.length) {
+    alert('没有问题或没有启用模型');
+    return;
+  }
+
+  const totalOps = questions.length * providers.length;
+
+  if (!confirm(`即将运行 ${questions.length} 题 × ${providers.length} 模型 = ${totalOps} 次，确认？`)) {
+    return;
+  }
+
+  batchState.running = true;
+  batchState.total = totalOps;
+  batchState.done = 0;
+  showBatchProgress(true);
+  updateBatchProgressUI(0, totalOps, '', '');
+
+  for (const qObj of questions) {
+    for (const provider of providers) {
+      if (!batchState.running) break; // 支持中断
+
+      batchState.currentQuestion = qObj.question;
+      batchState.currentProvider = provider.provider_code;
+      updateBatchProgressUI(batchState.done, totalOps, qObj.question, provider.provider_code);
+
+      try {
+        await runOneQuestionWithProvider(qObj, provider, apiKey);
+      } catch (err) {
+        console.error('运行失败:', qObj.id, provider.provider_code, err);
+      }
+
+      batchState.done += 1;
+      updateBatchProgressUI(batchState.done, totalOps, qObj.question, provider.provider_code);
+
+      // 小延迟避免限流
+      await sleep(300);
+    }
+  }
+
+  batchState.running = false;
+  showBatchProgress(false);
+  await loadData();
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ========== 批量进度 UI ==========
+function showBatchProgress(show) {
+  const el = $('#batchProgress');
+  if (show) {
+    el.classList.add('active');
+  } else {
+    el.classList.remove('active');
+  }
+}
+
+function updateBatchProgressUI(done, total, questionText, providerText) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  $('#bpBarFill').style.width = pct + '%';
+  $('#bpText').textContent = `${done} / ${total}`;
+  const qShort = questionText ? questionText.slice(0, 30) + (questionText.length > 30 ? '…' : '') : '';
+  const pShort = providerText || '';
+  $('#bpDetail').textContent = [qShort, pShort].filter(Boolean).join(' · ') || '准备中…';
+}
+
+// ========== 运行选中问题 ==========
+async function runSelected() {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    alert('请先设置 Ark API Key');
+    openApiKeyModal();
+    return;
+  }
+
+  if (batchState.running) {
+    alert('批量运行进行中');
+    return;
+  }
+
+  const checked = [...$$('.row-check:checked')].map(cb => parseInt(cb.dataset.qid));
+  if (!checked.length) {
+    alert('请先勾选问题');
+    return;
+  }
+
+  const questions = allQuestions.filter(q => checked.includes(q.id));
+  const providers = allProviders;
+  const totalOps = questions.length * providers.length;
+
+  if (!confirm(`即将对 ${questions.length} 题运行 ${providers.length} 个模型，共 ${totalOps} 次，确认？`)) return;
+
+  batchState.running = true;
+  batchState.total = totalOps;
+  batchState.done = 0;
+  showBatchProgress(true);
+
+  for (const qObj of questions) {
+    for (const provider of providers) {
+      batchState.currentQuestion = qObj.question;
+      batchState.currentProvider = provider.provider_code;
+      updateBatchProgressUI(batchState.done, totalOps, qObj.question, provider.provider_code);
+
+      try {
+        await runOneQuestionWithProvider(qObj, provider, apiKey);
+      } catch (err) {
+        console.error('运行失败:', err);
+      }
+      batchState.done += 1;
+      await sleep(300);
+    }
+  }
+
+  batchState.running = false;
+  showBatchProgress(false);
+  await loadData();
+}
+
+// ========== 详情弹窗 ==========
+async function showDetail(qid) {
+  const qObj = allQuestions.find(q => q.id === qid);
+  if (!qObj) return;
+
+  // 获取该问题的所有 runs（不只是 latest）
+  const { data: allRuns } = await sb
+    .from(window.SUPABASE_GEO_RUNS_TABLE || 'geo_runs')
+    .select('*')
+    .eq('question_id', qid)
+    .order('run_time', { ascending: false })
+    .limit(50);
+
+  // 获取所有 run_sources
+  const runIds = (allRuns || []).map(r => r.id);
+  let allSources = [];
+  if (runIds.length) {
+    const { data: sources } = await sb
+      .from(window.SUPABASE_GEO_RUN_SOURCES_TABLE || 'geo_run_sources')
+      .select('*')
+      .in('run_id', runIds)
+      .order('rank_no', { ascending: true });
+    allSources = sources || [];
+  }
+
+  // 按 run_id 分组 sources
+  const sourcesByRun = {};
+  for (const s of allSources) {
+    if (!sourcesByRun[s.run_id]) sourcesByRun[s.run_id] = [];
+    sourcesByRun[s.run_id].push(s);
+  }
+
+  // 渲染
+  $('#detailTitle').textContent = '📋 运行详情';
+  let html = '';
+  html += `<div style="margin-bottom:16px;padding:12px 16px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid var(--geo-border)">
+    <div style="font-size:15px;font-weight:600;color:var(--geo-text-primary);margin-bottom:6px">${escHtml(qObj.question)}</div>
+    <div style="font-size:12px;color:var(--geo-text-muted);display:flex;gap:14px;flex-wrap:wrap">
+      ${qObj.track ? `<span>🏷️ ${escHtml(qObj.track)}</span>` : ''}
+      ${qObj.intent ? `<span>🎯 ${escHtml(qObj.intent)}</span>` : ''}
+      ${qObj.persona ? `<span>👤 ${escHtml(qObj.persona)}</span>` : ''}
+      <span>📊 ${formatPriority(qObj.priority)}</span>
+    </div>
+  </div>`;
+
+  if (!allRuns || !allRuns.length) {
+    html += '<div style="text-align:center;padding:30px;color:var(--geo-text-muted)">暂无运行记录</div>';
+  } else {
+    for (const run of allRuns) {
+      const isSuccess = run.run_status === 'success';
+      const statusIcon = isSuccess ? (run.is_mentioned ? '✅' : '❌') : '⚠️';
+      const statusText = isSuccess ? (run.is_mentioned ? '提及' : '未提及') : '失败';
+
+      const runSources = sourcesByRun[run.id] || [];
+
+      html += `<div style="margin-bottom:14px;border:1px solid var(--geo-border);border-radius:8px;overflow:hidden">
+        <div style="padding:10px 14px;background:rgba(255,255,255,0.02);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <span class="badge badge-provider">${escHtml(run.provider || '—')}</span>
+            <span style="font-size:11px;color:var(--geo-text-muted);margin-left:6px">${escHtml(run.model_name || '')}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+            <span>${statusIcon} ${statusText}</span>
+            ${run.is_first_mentioned ? '<span style="color:var(--geo-green)">🥇 首位</span>' : ''}
+            ${run.is_top_recommended ? '<span style="color:var(--geo-purple)">⭐ 强推荐</span>' : ''}
+            <span style="color:var(--geo-text-muted)">置信 ${run.confidence_score || 0}</span>
+            <span style="color:var(--geo-text-muted)">${formatTime(run.run_time)}</span>
+          </div>
+        </div>
+
+        ${runSources.length ? `
+        <div style="padding:8px 14px;border-top:1px solid var(--geo-border)">
+          <div style="font-size:11px;color:var(--geo-text-muted);margin-bottom:4px">📎 识别来源：</div>
+          <div class="source-tags">
+            ${runSources.map(s => `
+              <span class="source-tag ${s.attribution_type || 'inferred'}" title="${escHtml(s.evidence_text || '')}">
+                ${escHtml(s.source_name)}
+                <span style="opacity:0.7">${s.confidence_score ? Math.round(s.confidence_score * 100) + '%' : ''}</span>
+              </span>
+            `).join('')}
+          </div>
+        </div>` : ''}
+
+        <div style="padding:10px 14px;font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word;max-height:360px;overflow-y:auto;color:var(--geo-text-body);border-top:1px solid var(--geo-border)">
+          ${escHtml(run.raw_response || '（空）')}
+        </div>
+      </div>`;
+    }
+  }
+
+  $('#detailBody').innerHTML = html;
+  $('#detailModal').classList.add('active');
+}
+
+function formatTime(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch {
+    return iso;
+  }
+}
+
+// ========== 弹窗控制 ==========
+function openModal(id) { $('#' + id).classList.add('active'); }
+function closeModal(id) { $('#' + id).classList.remove('active'); }
+
+// ========== 新增/编辑问题 ==========
+function openQuestionModal(editId) {
+  if (editId) {
+    const q = allQuestions.find(q => q.id === editId);
+    if (!q) return;
+    $('#questionModalTitle').textContent = '编辑问题';
+    $('#qQuestion').value = q.question || '';
+    $('#qTrack').value = q.track || '';
+    $('#qIntent').value = q.intent || '';
+    $('#qPersona').value = q.persona || '';
+    $('#qPriority').value = String(q.priority || 2);
+    $('#qEditId').value = q.id;
+  } else {
+    $('#questionModalTitle').textContent = '新增问题';
+    $('#qQuestion').value = '';
+    $('#qTrack').value = '';
+    $('#qIntent').value = '';
+    $('#qPersona').value = '';
+    $('#qPriority').value = '2';
+    $('#qEditId').value = '';
+  }
+  openModal('questionModal');
+}
+
+async function saveQuestionHandler() {
+  const question = $('#qQuestion').value.trim();
+  if (!question) {
+    alert('请输入问题内容');
+    return;
+  }
+
+  const dataObj = {
+    id: $('#qEditId').value ? parseInt($('#qEditId').value, 10) : null,
     question,
-    track: track || null,
-    intent: intent || null,
-    persona: persona || null,
-    priority: mapPriorityToNumber(priority),
+    track: $('#qTrack').value.trim(),
+    intent: $('#qIntent').value,
+    persona: $('#qPersona').value.trim(),
+    priority: parseInt($('#qPriority').value, 10) || 2,
     status: 'active'
   };
 
-  const { error } = await sb
-    .from(SUPABASE_GEO_QUESTIONS_TABLE)
-    .insert(payload);
-
-  if (error) throw error;
-
-  closeQuestionModal();
-  await refreshData();
-  toast('新增问题成功');
+  try {
+    await saveQuestion(dataObj);
+    closeModal('questionModal');
+    await loadData();
+  } catch (err) {
+    alert('保存失败: ' + (err.message || err));
+  }
 }
 
-    function judgeTTF(text) {
-      const raw = String(text || '');
-      const normalized = raw
-        .replace(/\s+/g, '')
-        .replace(/[（(]/g, '(')
-        .replace(/[）)]/g, ')');
+// ========== API Key 弹窗 ==========
+function openApiKeyModal() {
+  $('#apiKeyInput').value = getApiKey();
+  openModal('apiKeyModal');
+}
 
-      const aliases = [
-        '汇添富',
-        '汇添富基金',
-        '汇添富基金管理',
-        '汇添富基金管理股份有限公司'
-      ];
+function saveApiKeyHandler() {
+  setApiKey($('#apiKeyInput').value);
+  closeModal('apiKeyModal');
+}
 
-      const isMentioned = aliases.some(k => normalized.includes(k));
+// ========== HTML 转义 ==========
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
-      let isFirstMentioned = false;
-      let isTopRecommended = false;
+// ========== 事件绑定 ==========
+function bindEvents() {
+  // 搜索
+  $('#searchInput').addEventListener('input', () => { applyFilters(); renderTable(); });
+  $('#filterTrack').addEventListener('change', () => { applyFilters(); renderTable(); });
+  $('#filterIntent').addEventListener('change', () => { applyFilters(); renderTable(); });
 
-      if (isMentioned) {
-        const indexList = aliases
-          .map(k => normalized.indexOf(k))
-          .filter(i => i >= 0)
-          .sort((a, b) => a - b);
+  // 全选
+  $('#selectAll').addEventListener('change', () => {
+    const checked = $('#selectAll').checked;
+    $$('.row-check').forEach(cb => { cb.checked = checked; });
+  });
 
-        const firstHit = indexList.length ? indexList[0] : -1;
+  // 按钮
+  $('#btnAddQuestion').addEventListener('click', () => openQuestionModal(null));
+  $('#btnRunSelected').addEventListener('click', runSelected);
+  $('#btnBatchRun').addEventListener('click', batchRunAll);
+  $('#btnSetApiKey').addEventListener('click', openApiKeyModal);
 
-        const competitorKeywords = [
-          '易方达', '华夏', '富国', '中欧', '南方', '嘉实', '广发', '博时',
-          '兴证全球', '工银瑞信', '招商', '景顺长城', '天弘', '鹏华', '银华'
-        ];
+  // 问题弹窗
+  $('#questionSave').addEventListener('click', saveQuestionHandler);
+  $('#questionCancel').addEventListener('click', () => closeModal('questionModal'));
+  $('#questionClose').addEventListener('click', () => closeModal('questionModal'));
 
-        let earlierCompetitor = false;
-        for (const name of competitorKeywords) {
-          const idx = normalized.indexOf(name);
-          if (idx >= 0 && idx < firstHit) {
-            earlierCompetitor = true;
-            break;
-          }
-        }
+  // 详情弹窗
+  $('#detailClose').addEventListener('click', () => closeModal('detailModal'));
+  $('#detailCloseBtn').addEventListener('click', () => closeModal('detailModal'));
 
-        isFirstMentioned = !earlierCompetitor;
+  // API Key 弹窗
+  $('#apiKeySave').addEventListener('click', saveApiKeyHandler);
+  $('#apiKeyCancel').addEventListener('click', () => closeModal('apiKeyModal'));
+  $('#apiKeyClose').addEventListener('click', () => closeModal('apiKeyModal'));
 
-        const topWindow = normalized.slice(0, 120);
-        const recommendWords = ['推荐', '优先', '首选', '值得', '可以考虑', '比较适合'];
-
-        isTopRecommended =
-          aliases.some(k => topWindow.includes(k)) &&
-          recommendWords.some(k => raw.includes(k) || normalized.includes(k));
-      }
-
-      return {
-        is_mentioned: isMentioned,
-        is_first_mentioned: isFirstMentioned,
-        is_top_recommended: isTopRecommended,
-        confidence_score: isMentioned ? 0.85 : 0.75
-      };
+  // 点击遮罩关闭
+  window.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal-overlay')) {
+      e.target.classList.remove('active');
     }
+  });
 
-    async function callProvider(provider, question, apiKey) {
-      const baseUrl = (provider.base_url || '').replace(/\/$/, '');
-      const url = baseUrl + '/chat/completions';
-
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + apiKey
-        },
-        body: JSON.stringify({
-          model: provider.model_name,
-          messages: [
-            {
-              role: 'system',
-              content: '你是基金产品与财富管理领域助手。请直接回答用户问题，尽量给出基金公司或基金品牌的具体名称，并说明理由。'
-            },
-            {
-              role: 'user',
-              content: question
-            }
-          ],
-          temperature: 0.7
-        })
-      });
-
-      if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error('调用失败: ' + resp.status + ' ' + text);
-      }
-
-      const json = await resp.json();
-      return json?.choices?.[0]?.message?.content || '';
+  // ESC 关闭
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      $$('.modal-overlay.active').forEach(m => m.classList.remove('active'));
     }
+  });
+}
 
-    async function insertRunRecord(payload) {
-      const { error } = await sb
-        .from(SUPABASE_GEO_RUNS_TABLE)
-        .insert(payload);
+// ========== 初始化 ==========
+async function init() {
+  bindEvents();
+  await buildSourceMatchRules();
+  await loadData();
+}
 
-      if (error) throw error;
-    }
+// 启动
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 
-    async function runOneQuestionWithProvider(questionObj, provider, apiKey) {
-      const questionText = questionObj.question || '';
-      let rawResponse = '';
-      let judge = {
-        is_mentioned: false,
-        is_first_mentioned: false,
-        is_top_recommended: false,
-        confidence_score: 0
-      };
-      let runStatus = 'success';
+})();
+</script>
 
-      try {
-        rawResponse = await callProvider(provider, questionText, apiKey);
-        judge = judgeTTF(rawResponse);
-      } catch (err) {
-        runStatus = 'failed';
-        rawResponse = String(err.message || err || 'unknown error');
-      }
-
-      await insertRunRecord({
-        question_id: questionObj.id,
-        provider: provider.provider_code,
-        model_name: provider.model_name,
-        raw_response: rawResponse,
-        is_mentioned: !!judge.is_mentioned,
-        is_first_mentioned: !!judge.is_first_mentioned,
-        is_top_recommended: !!judge.is_top_recommended,
-        confidence_score: judge.confidence_score || 0,
-        run_status: runStatus,
-        run_time: new Date().toISOString()
-      });
-    }
-
-    async function runSingleQuestion(questionId, providerCode) {
-      const apiKey = getSavedApiKey().trim();
-      if (!apiKey) {
-        alert('请先填写并保存 Ark API Key');
-        return;
-      }
-
-      const questionObj = questions.find(x => String(x.id) === String(questionId));
-      const provider = providers.find(x => x.provider_code === providerCode);
-
-      if (!questionObj || !provider) {
-        alert('未找到问题或模型配置');
-        return;
-      }
-
-      try {
-        toast(`正在运行：${questionObj.question} / ${provider.provider_name || provider.provider_code}`);
-        await runOneQuestionWithProvider(questionObj, provider, apiKey);
-        await refreshData(true);
-        renderAll();
-        toast(`运行完成：${provider.provider_name || provider.provider_code}`);
-      } catch (err) {
-        console.error(err);
-        toast('运行失败：' + (err.message || err));
-      }
-    }
-
-    async function runQuestionAllProviders(questionId) {
-      const apiKey = getSavedApiKey().trim();
-      if (!apiKey) {
-        alert('请先填写并保存 Ark API Key');
-        return;
-      }
-
-      const questionObj = questions.find(x => String(x.id) === String(questionId));
-      if (!questionObj) {
-        alert('未找到问题');
-        return;
-      }
-
-      try {
-        for (const provider of providers) {
-          toast(`正在运行：${questionObj.question} / ${provider.provider_name || provider.provider_code}`);
-          await runOneQuestionWithProvider(questionObj, provider, apiKey);
-        }
-        await refreshData(true);
-        renderAll();
-        toast('该问题的全部模型已运行完成');
-      } catch (err) {
-        console.error(err);
-        toast('批量运行该问题失败：' + (err.message || err));
-      }
-    }
-
-    async function runBatchAll() {
-      const apiKey = getSavedApiKey().trim();
-      if (!apiKey) {
-        alert('请先填写并保存 Ark API Key');
-        return;
-      }
-
-      if (!questions.length) {
-        alert('当前没有 GEO 问题');
-        return;
-      }
-
-      if (!providers.length) {
-        alert('当前没有启用的模型配置');
-        return;
-      }
-
-      const questionList = getFilteredQuestions();
-      if (!questionList.length) {
-        alert('当前筛选条件下没有问题可运行');
-        return;
-      }
-
-      const total = questionList.length * providers.length;
-      let done = 0;
-      stopBatchRequested = false;
-
-      setBatchRunning(true);
-      updateBatchProgress(0, total, '', '');
-
-      try {
-        for (const q of questionList) {
-          for (const p of providers) {
-            if (stopBatchRequested) {
-              toast('批量运行已停止');
-              return;
-            }
-
-            updateBatchProgress(done, total, q.question, p.provider_name || p.provider_code);
-            toast(`运行中：${done + 1}/${total}`);
-
-            try {
-              await runOneQuestionWithProvider(q, p, apiKey);
-            } catch (err) {
-              console.error('batch item failed', err);
-            }
-
-            done += 1;
-            updateBatchProgress(done, total, q.question, p.provider_name || p.provider_code);
-          }
-        }
-
-        await refreshData(true);
-        renderAll();
-        toast(`批量运行完成：${done}/${total}`);
-      } catch (err) {
-        console.error(err);
-        toast('批量运行失败：' + (err.message || err));
-      } finally {
-        setBatchRunning(false);
-        if (!stopBatchRequested) {
-          setTimeout(() => {
-            resetBatchProgress();
-          }, 1200);
-        }
-      }
-    }
-
-    function stopBatchRun() {
-      stopBatchRequested = true;
-      setBatchRunning(false);
-      $('batchProgressDetail').textContent = '已请求停止，等待当前任务结束...';
-    }
-
-    async function showDetailByRunId(runId) {
-      try {
-        const { data, error } = await sb
-          .from(SUPABASE_GEO_RUNS_TABLE)
-          .select('*')
-          .eq('id', runId)
-          .single();
-
-        if (error) throw error;
-
-        const q = questions.find(x => String(x.id) === String(data.question_id));
-        $('detailQuestion').textContent = q?.question || '-';
-        $('detailProvider').textContent =
-          `${data.provider || '-'} / ${data.model_name || '-'} / ${formatDateTime(data.run_time)}`;
-
-        $('detailJudge').textContent = [
-          `run_status: ${data.run_status || '-'}`,
-          `is_mentioned: ${data.is_mentioned ? 'true' : 'false'}`,
-          `is_first_mentioned: ${data.is_first_mentioned ? 'true' : 'false'}`,
-          `is_top_recommended: ${data.is_top_recommended ? 'true' : 'false'}`,
-          `confidence_score: ${data.confidence_score ?? '-'}`
-        ].join('\n');
-
-        $('detailResponse').textContent = data.raw_response || '';
-        $('detailModal').classList.add('show');
-      } catch (err) {
-        console.error(err);
-        alert('读取详情失败：' + (err.message || err));
-      }
-    }
-
-    function openQuestionModal() {
-      $('questionModal').classList.add('show');
-    }
-
-    function closeQuestionModal() {
-      $('questionModal').classList.remove('show');
-      $('newQuestionText').value = '';
-      $('newQuestionTrack').value = '';
-      $('newQuestionIntent').value = '';
-      $('newQuestionPersona').value = '';
-      $('newQuestionPriority').value = 'medium';
-    }
-
-    function closeDetailModal() {
-      $('detailModal').classList.remove('show');
-    }
-
-    function bindEvents() {
-      $('apiKeyInput').value = getSavedApiKey();
-
-      $('saveApiKeyBtn').addEventListener('click', () => {
-        const v = $('apiKeyInput').value.trim();
-        setSavedApiKey(v);
-        toast(v ? 'API Key 已保存到本地' : 'API Key 已清空');
-      });
-
-      $('refreshBtn').addEventListener('click', () => refreshData());
-      $('addQuestionBtn').addEventListener('click', openQuestionModal);
-      $('saveQuestionBtn').addEventListener('click', async () => {
-        try {
-          await saveQuestion();
-        } catch (err) {
-          console.error(err);
-          alert('保存失败：' + (err.message || err));
-        }
-      });
-
-      $('batchRunBtn').addEventListener('click', runBatchAll);
-      $('stopBatchBtn').addEventListener('click', stopBatchRun);
-
-      $('searchInput').addEventListener('input', renderAll);
-      $('trackFilter').addEventListener('change', renderAll);
-      $('intentFilter').addEventListener('change', renderAll);
-
-      $('questionModal').addEventListener('click', (e) => {
-        if (e.target.id === 'questionModal') closeQuestionModal();
-      });
-
-      $('detailModal').addEventListener('click', (e) => {
-        if (e.target.id === 'detailModal') closeDetailModal();
-      });
-    }
-
-    window.runSingleQuestion = runSingleQuestion;
-    window.runQuestionAllProviders = runQuestionAllProviders;
-    window.showDetailByRunId = showDetailByRunId;
-    window.closeQuestionModal = closeQuestionModal;
-    window.closeDetailModal = closeDetailModal;
-
-    async function init() {
-      bindEvents();
-      await refreshData();
-    }
-
-    init();
-  </script>
 </body>
 </html>

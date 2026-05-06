@@ -738,7 +738,7 @@ async function generateAISummary() {
         model: cfg.model,
         stream: true,
         messages: [
-          { role: 'system', content: '你是一个专业的产品经理助手，请对以下内容生成一段简洁、专业的中文摘要（150字以内），突出核心观点。' },
+          { role: 'system', content: '你是一个专业的产品经理助手，请对以下内容生成一段简洁、专业的中文摘要（300字以内），突出核心观点。' },
           { role: 'user', content: text.slice(0, 3000) }
         ]
       })
