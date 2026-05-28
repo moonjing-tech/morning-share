@@ -19,11 +19,20 @@ APPS = [
     {"app_id": "862981607",  "app_name": "招商基金",    "company": "招商基金"},
     {"app_id": "672198904",  "app_name": "博时基金",    "company": "博时基金"},
     {"app_id": "1484459002",  "app_name": "中欧财富",    "company": "中欧基金"},
+    {"app_id": "1151318069",  "app_name": "鹏华A加钱包",    "company": "鹏华基金"},
+    {"app_id": "1639837442",  "app_name": "博时财富",    "company": "博时财富"},
+    
     
     # 主流基金投资平台
     {"app_id": "1104871195", "app_name": "且慢",        "company": "且慢"},
     {"app_id": "6511224711", "app_name": "涨乐",        "company": "华泰证券"},
     {"app_id": "1025628019", "app_name": "蚂蚁财富",    "company": "蚂蚁集团"},
+    {"app_id": "1042242071", "app_name": "雪球基金",    "company": "雪球"},
+    {"app_id": "1517062915", "app_name": "韭圈儿",    "company": "韭圈儿"},
+    {"app_id": "1187801604", "app_name": "腾讯理财通",    "company": "腾讯"},
+    {"app_id": "895682747", "app_name": "京东金融",    "company": "京东集团"},
+    {"app_id": "1513319754", "app_name": "有知有行",    "company": "有知有行"},
+    {"app_id": "641426648", "app_name": "同花顺爱基金",    "company": "同花顺"},
 ]
 
 def fetch_app_info(app_id):
