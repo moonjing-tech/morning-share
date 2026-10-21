@@ -84,7 +84,7 @@
       background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md);
-      overflow: hidden;
+      overflow-x: auto;
     }
     .fund-table-wrap table {
       width: 100%;
@@ -281,12 +281,12 @@
           <div class="sc-sub">只基金</div>
         </div>
         <div class="summary-card card-up">
-          <div class="sc-label">今日上涨</div>
+          <div class="sc-label">估值上涨</div>
           <div class="sc-value text-up" id="sc-up">—</div>
           <div class="sc-sub">只</div>
         </div>
         <div class="summary-card card-down">
-          <div class="sc-label">今日下跌</div>
+          <div class="sc-label">估值下跌</div>
           <div class="sc-value text-down" id="sc-down">—</div>
           <div class="sc-sub">只</div>
         </div>
@@ -296,6 +296,10 @@
           <div class="sc-sub">估算值</div>
         </div>
       </div>
+
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:var(--space-md)">
+        数据来自天天基金。盘中估值仅供参考；未提供估值的基金单独展示正式净值及日期，不计入估值汇总。
+      </p>
 
       <!-- 刷新进度条 -->
       <div class="refresh-progress-wrap" id="refresh-progress-wrap">
@@ -326,15 +330,17 @@
             <tr>
               <th>基金代码</th>
               <th>基金名称</th>
+              <th>正式净值</th>
+              <th>净值日期</th>
               <th>估算净值</th>
-              <th>涨跌幅</th>
+              <th>估值涨跌幅</th>
               <th>估值时间</th>
               <th style="text-align:right">操作</th>
             </tr>
           </thead>
           <tbody id="fund-tbody">
             <tr>
-              <td colspan="6">
+              <td colspan="8">
                 <div class="empty-state fund-empty">
                   <div class="empty-icon">📊</div>
                   <p>暂无关注基金，点击右上角「添加基金」</p>
@@ -376,6 +382,14 @@
         <div class="fund-preview-row">
           <span class="fp-key">基金名称</span>
           <span class="fp-val" id="fp-name">—</span>
+        </div>
+        <div class="fund-preview-row">
+          <span class="fp-key">正式净值</span>
+          <span class="fp-val" id="fp-official-nav">—</span>
+        </div>
+        <div class="fund-preview-row">
+          <span class="fp-key">净值日期</span>
+          <span class="fp-val" id="fp-official-date">—</span>
         </div>
         <div class="fund-preview-row">
           <span class="fp-key">估算净值</span>
@@ -440,6 +454,8 @@ let previewData  = null; // 添加弹窗预览数据
 let deletingCode = null;
 let sortCol      = '';
 let sortDir      = 1;    // 1=升序 -1=降序
+const singleRefreshes = new Set();
+let previewRequestId = 0;
 
 /* ══════════════════════════════════════════
    初始化
@@ -465,97 +481,119 @@ function saveToStorage() {
   localStorage.setItem(LS_KEYS.watchFunds, JSON.stringify(watchList));
 }
 
-/* ══════════════════════════════════════════
-   JSONP 串行获取估值
-══════════════════════════════════════════ */
-function fetchFundValuation(code) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    const timer  = setTimeout(() => {
-      window.jsonpgz = null;
-      if (document.body.contains(script)) document.body.removeChild(script);
-      reject(new Error('超时'));
-    }, 8000);
+/* ── 天天基金新版批量估值：主域失败时切换备用域 ── */
+const VALUATION_ENDPOINTS = [
+  'https://fundcomapi.tiantianfunds.com/mm/newCore/FundValuationLast',
+  'https://fundcomapi.eastmoney.com/mm/newCore/FundValuationLast',
+];
+const VALUATION_FIELDS = 'FCODE,SHORTNAME,GSZ,GSZZL,GZTIME,NAV,PDATE';
 
-    window.jsonpgz = (data) => {
-      clearTimeout(timer);
-      window.jsonpgz = null;
-      if (document.body.contains(script)) document.body.removeChild(script);
-      resolve(data);
-    };
-
-    script.onerror = () => {
-      clearTimeout(timer);
-      window.jsonpgz = null;
-      reject(new Error('请求失败'));
-    };
-
-    script.src = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
-    document.body.appendChild(script);
-  });
+function numericValue(value) {
+  if (value === null || value === undefined || String(value).trim() === '') return null;
+  return Number.isFinite(Number(value)) ? String(value) : null;
 }
 
-/* ══════════════════════════════════════════
-   刷新全部（串行）
-══════════════════════════════════════════ */
-async function refreshAll() {
-  if (isRefreshing || watchList.length === 0) return;
-  isRefreshing = true;
+function normalizeValuation(data) {
+  const gsz = numericValue(data.GSZ);
+  const gszzl = numericValue(data.GSZZL);
+  const hasEstimate = gsz !== null && gszzl !== null && !!data.GZTIME;
+  return {
+    code: String(data.FCODE), name: data.SHORTNAME || String(data.FCODE),
+    gsz: hasEstimate ? gsz : null,
+    gszzl: hasEstimate ? gszzl : null,
+    gztime: hasEstimate ? data.GZTIME : null,
+    nav: numericValue(data.NAV), navDate: data.PDATE || null,
+    error: null,
+  };
+}
 
-  const btn      = document.getElementById('btn-refresh');
-  const wrap     = document.getElementById('refresh-progress-wrap');
-  const bar      = document.getElementById('refresh-progress-bar');
-  btn.disabled   = true;
-  btn.innerHTML  = '<span class="loading-spinner"></span> 刷新中…';
+async function fetchFundValuations(codes) {
+  const uniqueCodes = [...new Set(codes)];
+  if (!uniqueCodes.length) return new Map();
+  if (uniqueCodes.some(code => !/^\d{6}$/.test(code))) throw new Error('基金代码须为6位数字');
+  const params = new URLSearchParams({ FCODES: uniqueCodes.join(','), FIELDS: VALUATION_FIELDS });
+  let lastError;
+  for (const endpoint of VALUATION_ENDPOINTS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    try {
+      const response = await fetch(`${endpoint}?${params}`, {
+        signal: controller.signal, credentials: 'omit', cache: 'no-store',
+      });
+      if (!response.ok) throw new Error(`行情服务 HTTP ${response.status}`);
+      const payload = await response.json();
+      if (payload.success !== true || !Array.isArray(payload.data)) {
+        throw new Error('行情服务未返回有效数据');
+      }
+      const rows = payload.data.filter(row => row && uniqueCodes.includes(String(row.FCODE)));
+      if (!rows.length) throw new Error('未找到基金数据');
+      return new Map(rows.map(row => [String(row.FCODE), normalizeValuation(row)]));
+    } catch (error) {
+      lastError = error.name === 'AbortError' ? new Error('行情请求超时') : error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastError || new Error('行情服务暂不可用');
+}
+
+async function fetchFundValuation(code) {
+  const results = await fetchFundValuations([code]);
+  const result = results.get(code);
+  if (!result) throw new Error('未找到该基金');
+  return result;
+}
+
+/* ── 批量刷新，失败保留旧数据并明确标注 ── */
+async function refreshAll() {
+  if (isRefreshing || !watchList.length) return;
+  if (singleRefreshes.size) { showToast('请等待单只基金刷新完成', 'info'); return; }
+  isRefreshing = true;
+  const btn = document.getElementById('btn-refresh');
+  const wrap = document.getElementById('refresh-progress-wrap');
+  const bar = document.getElementById('refresh-progress-bar');
+  const items = [...watchList];
+  let updated = 0, failed = 0;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner"></span> 刷新中…';
   wrap.classList.add('active');
   bar.style.width = '0%';
-
-  const total = watchList.length;
-
-  for (let i = 0; i < total; i++) {
-    const item = watchList[i];
-    // 更新进度条
-    bar.style.width = `${Math.round((i / total) * 100)}%`;
-    // 表格中对应行显示 loading
-    setRowLoading(item.code, true);
-
-    try {
-      const data = await fetchFundValuation(item.code);
-      // 合并数据
-      item.name   = data.name  || item.name  || item.code;
-      item.gsz    = data.gsz   || '—';
-      item.gszzl  = data.gszzl !== undefined ? String(data.gszzl) : '—';
-      item.gztime = data.gztime || '—';
-    } catch (e) {
-      item.gsz    = item.gsz    || '—';
-      item.gszzl  = item.gszzl  || '—';
-      item.gztime = item.gztime || '—';
+  try {
+    // 分批控制请求长度；各批包含最多50只基金。
+    for (let offset = 0; offset < items.length; offset += 50) {
+      const batch = items.slice(offset, offset + 50);
+      batch.forEach(item => setRowLoading(item.code, true));
+      try {
+        const results = await fetchFundValuations(batch.map(item => item.code));
+        batch.forEach(item => {
+          const data = results.get(item.code);
+          if (data) { Object.assign(item, data); updated++; }
+          else { item.error = '未返回该基金数据'; failed++; }
+        });
+      } catch (error) {
+        batch.forEach(item => { item.error = error.message; failed++; });
+      }
+      batch.forEach(item => setRowLoading(item.code, false));
+      bar.style.width = `${Math.round(Math.min(offset + 50, items.length) / items.length * 100)}%`;
+      renderTable();
     }
-
-    setRowLoading(item.code, false);
-    // 实时更新该行
-    updateRow(item);
-  }
-
-  bar.style.width = '100%';
-  saveToStorage();
-  updateSummary();
-
-  // 记录刷新时间
-  const now = new Date();
-  document.getElementById('last-refresh-time').textContent =
-    `上次刷新：${now.getHours().toString().padStart(2,'0')}:` +
-    `${now.getMinutes().toString().padStart(2,'0')}:` +
-    `${now.getSeconds().toString().padStart(2,'0')}`;
-
-  setTimeout(() => {
+    saveToStorage();
+    updateSummary();
+    const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    document.getElementById('last-refresh-time').textContent = updated === 0
+      ? `刷新失败（${time}），显示上次数据`
+      : failed ? `更新 ${updated} 只，失败 ${failed} 只 · ${time}`
+      : `查询成功：${time}（估值时间见表格）`;
+    if (failed) showToast(`刷新失败 ${failed} 只，已标注上次数据`, 'error');
+  } catch (error) {
+    showToast('刷新未完成：' + error.message, 'error');
+  } finally {
     wrap.classList.remove('active');
     bar.style.width = '0%';
-  }, 600);
-
-  btn.disabled  = false;
-  btn.innerHTML = '🔄 刷新估值';
-  isRefreshing  = false;
+    btn.disabled = false;
+    btn.innerHTML = '🔄 刷新估值';
+    isRefreshing = false;
+  }
 }
 
 /* ══════════════════════════════════════════
@@ -586,7 +624,7 @@ function renderTable() {
 
   if (list.length === 0) {
     tbody.innerHTML = `
-      <tr><td colspan="6">
+      <tr><td colspan="8">
         <div class="empty-state fund-empty">
           <div class="empty-icon">📊</div>
           <p>${kw ? '没有匹配的基金' : '暂无关注基金，点击右上角「添加基金」'}</p>
@@ -612,9 +650,13 @@ function buildRow(item) {
     <tr id="row-${item.code}">
       <td><span class="fund-code">${item.code}</span></td>
       <td><span class="fund-name" title="${escHtml(item.name||'')}">${escHtml(item.name || '加载中…')}</span></td>
-      <td><span class="fund-nav">${item.gsz || '—'}</span></td>
+      <td><span class="fund-nav">${escHtml(item.nav ?? '—')}</span></td>
+      <td><span class="gz-time">${escHtml(item.navDate || '—')}</span></td>
+      <td><span class="fund-nav">${escHtml(item.gsz ?? '—')}</span></td>
       <td><span class="change-cell ${cls}">${chgStr}</span></td>
-      <td><span class="gz-time">${item.gztime || '—'}</span></td>
+      <td><span class="gz-time">${escHtml(item.gztime || '暂无盘中估值')}</span>
+        ${item.error ? `<div style="font-size:11px;color:var(--danger)" title="${escHtml(item.error)}">刷新失败 · 显示上次数据</div>` : ''}
+      </td>
       <td class="action-col">
         <button class="btn btn-ghost btn-sm"
                 onclick="refreshSingle('${item.code}')"
@@ -633,9 +675,9 @@ function setRowLoading(code, loading) {
   if (loading) {
     tr.classList.add('loading-row');
     const tds = tr.querySelectorAll('td');
-    if (tds[2]) tds[2].innerHTML = '<span class="loading-spinner"></span>';
-    if (tds[3]) tds[3].innerHTML = '<span class="loading-spinner"></span>';
-    if (tds[4]) tds[4].innerHTML = '<span style="color:var(--text-muted);font-size:12px">更新中…</span>';
+    if (tds[4]) tds[4].innerHTML = '<span class="loading-spinner"></span>';
+    if (tds[5]) tds[5].innerHTML = '<span class="loading-spinner"></span>';
+    if (tds[6]) tds[6].innerHTML = '<span style="color:var(--text-muted);font-size:12px">更新中…</span>';
   } else {
     tr.classList.remove('loading-row');
   }
@@ -653,23 +695,23 @@ function updateRow(item) {
 ══════════════════════════════════════════ */
 async function refreshSingle(code) {
   if (isRefreshing) { showToast('请等待全量刷新完成', 'info'); return; }
+  if (singleRefreshes.has(code)) return;
   const item = watchList.find(i => i.code === code);
   if (!item) return;
+  singleRefreshes.add(code);
   setRowLoading(code, true);
   try {
-    const data  = await fetchFundValuation(code);
-    item.name   = data.name   || item.name || code;
-    item.gsz    = data.gsz    || '—';
-    item.gszzl  = data.gszzl !== undefined ? String(data.gszzl) : '—';
-    item.gztime = data.gztime || '—';
-    saveToStorage();
-    updateRow(item);
-    updateSummary();
-    showToast(`${item.name} 已更新`, 'success');
-  } catch (e) {
+    Object.assign(item, await fetchFundValuation(code));
+    showToast(item.gsz === null ? `${item.name} 暂无盘中估值，已更新正式净值` : `${item.name} 已更新`, 'success');
+  } catch (error) {
+    item.error = error.message;
+    showToast(`${code} 刷新失败：${error.message}`, 'error');
+  } finally {
+    singleRefreshes.delete(code);
     setRowLoading(code, false);
-    updateRow(item);
-    showToast(`${code} 刷新失败：${e.message}`, 'error');
+    renderTable();
+    updateSummary();
+    saveToStorage();
   }
 }
 
@@ -682,7 +724,7 @@ function updateSummary() {
 
   watchList.forEach(item => {
     const chg = parseFloat(item.gszzl);
-    if (!isNaN(chg)) {
+    if (!item.error && numericValue(item.gsz) !== null && !isNaN(chg)) {
       if (chg > 0) upCount++;
       if (chg < 0) downCount++;
       sumChg += chg;
@@ -711,6 +753,7 @@ function updateSummary() {
    添加基金弹窗
 ══════════════════════════════════════════ */
 function openAddModal() {
+  previewRequestId++;
   previewData = null;
   document.getElementById('fund-code-input').value = '';
   document.getElementById('fund-preview-box').classList.remove('active');
@@ -719,6 +762,8 @@ function openAddModal() {
   setTimeout(() => document.getElementById('fund-code-input').focus(), 80);
 }
 function closeAddModal() {
+  previewRequestId++;
+  clearTimeout(fundPreviewTimer);
   document.getElementById('add-modal').classList.remove('open');
 }
 
@@ -727,6 +772,8 @@ var fundPreviewTimer = null;
 
 function onFundCodeInput() {
   var code = document.getElementById('fund-code-input').value.trim();
+  clearTimeout(fundPreviewTimer);
+  previewRequestId++;
 
   // 重置状态
   previewData = null;
@@ -751,6 +798,7 @@ function onFundCodeInput() {
 
 /* ── 自动预览 ── */
 async function previewFund(code) {
+  const requestId = ++previewRequestId;
   var box    = document.getElementById('fund-preview-box');
   var nameEl = document.getElementById('fp-name');
   var navEl  = document.getElementById('fp-nav');
@@ -763,10 +811,13 @@ async function previewFund(code) {
   navEl.textContent  = '—';
   chgEl.textContent  = '—';
   timeEl.textContent = '—';
+  document.getElementById('fp-official-nav').textContent = '—';
+  document.getElementById('fp-official-date').textContent = '—';
   chgEl.style.color  = '';
 
   try {
     var data = await fetchFundValuation(code);
+    if (requestId !== previewRequestId) return;
     if (!data || !data.name) throw new Error('未找到该基金');
 
     previewData = { code: code, ...data };
@@ -781,7 +832,9 @@ async function previewFund(code) {
 
     nameEl.textContent = data.name  || '—';
     navEl.textContent  = data.gsz   || '—';
-    timeEl.textContent = data.gztime|| '—';
+    timeEl.textContent = data.gztime || '暂无盘中估值';
+    document.getElementById('fp-official-nav').textContent = data.nav ?? '—';
+    document.getElementById('fp-official-date').textContent = data.navDate || '—';
     chgEl.textContent  = chgStr;
 
     // 红涨绿跌
@@ -794,10 +847,13 @@ async function previewFund(code) {
     document.getElementById('add-confirm-btn').disabled = false;
 
   } catch(e) {
+    if (requestId !== previewRequestId) return;
     nameEl.textContent = '⚠ ' + e.message;
     navEl.textContent  = '—';
     chgEl.textContent  = '—';
     timeEl.textContent = '—';
+    document.getElementById('fp-official-nav').textContent = '—';
+    document.getElementById('fp-official-date').textContent = '—';
     previewData = null;
     document.getElementById('add-confirm-btn').disabled = true;
   }
@@ -808,11 +864,8 @@ function confirmAddFund() {
   if (!previewData) return;
   var code   = previewData.code;
   var name   = previewData.name   || code;
-  var gsz    = previewData.gsz    || '—';
-  var gszzl  = previewData.gszzl  !== undefined ? String(previewData.gszzl) : '—';
-  var gztime = previewData.gztime || '—';
-
-  watchList.push({ code: code, name: name, gsz: gsz, gszzl: gszzl, gztime: gztime });
+  if (watchList.some(item => item.code === code)) return;
+  watchList.push({ ...previewData });
   saveToStorage();
   renderTable();
   updateSummary();
