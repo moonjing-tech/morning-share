@@ -648,7 +648,7 @@ tbody tr:last-child td {
         <button class="btn btn-primary" id="btnAddQuestion">➕ 新增问题</button>
         <button class="btn btn-outline" id="btnRunSelected">▶️ 运行选中</button>
         <button class="btn btn-warning" id="btnBatchRun">⚡ 批量运行</button>
-        <button class="btn btn-outline btn-sm" id="btnSetApiKey">🔑 API Key</button>
+        <button class="btn btn-outline btn-sm" id="btnSetApiKey">⚙️ 接口配置</button>
       </div>
 
       <!-- 批量进度 -->
@@ -754,19 +754,38 @@ tbody tr:last-child td {
 <div class="modal-overlay" id="apiKeyModal">
   <div class="modal" style="max-width:480px">
     <div class="modal-header">
-      <h3>🔑 Ark API Key</h3>
+      <h3>⚙️ 模型接口配置</h3>
       <button class="modal-close" id="apiKeyClose">&times;</button>
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label>火山引擎 Ark API Key</label>
-        <input id="apiKeyInput" type="password" placeholder="粘贴 Ark API Key..." />
-        <div class="form-hint">Key 仅保存在浏览器本地，不会上传到数据库。</div>
+        <label for="apiModeInput">调用方式</label>
+        <select id="apiModeInput">
+          <option value="custom">自定义接口（单模型）</option>
+          <option value="ark">原有 Ark 多模型</option>
+        </select>
       </div>
+      <div class="form-group">
+        <label for="apiBaseUrlInput">接口基础地址</label>
+        <input id="apiBaseUrlInput" type="url" placeholder="https://llm.htffund.com/v1" />
+      </div>
+      <div class="form-group">
+        <label for="apiModelInput">模型名称</label>
+        <input id="apiModelInput" placeholder="deepseek-chat" />
+      </div>
+      <div class="form-group">
+        <label for="apiKeyInput">API Key</label>
+        <input id="apiKeyInput" type="password" autocomplete="off" placeholder="填写该接口的真实密钥" />
+        <div class="form-hint">密钥仅保存在当前浏览器，不写入数据库或公开代码；调用时发送给所选接口。新旧接口的密钥分别保存。</div>
+      </div>
+      <div class="form-hint">自定义模式只运行上面填写的模型；历史记录保留，当前统计按所选模型展示。原有 Ark 模式的模型由数据库配置。</div>
+      <div class="form-hint" style="margin-top:8px">测试连接会发送一次简短模型请求，费用按接口规则计算。</div>
+      <div id="apiTestStatus" role="status" style="font-size:12px;margin-top:12px;overflow-wrap:anywhere"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" id="apiKeyCancel">取消</button>
-      <button class="btn btn-primary" id="apiKeySave">保存</button>
+      <button class="btn btn-outline" id="apiTestConnection">测试连接</button>
+      <button class="btn btn-primary" id="apiKeySave">保存并使用</button>
     </div>
   </div>
 </div>
@@ -787,6 +806,7 @@ const GEO_API_KEY_STORAGE = (window.LS_KEYS && window.LS_KEYS.geoApiKey) || 'geo
 // ========== 全局状态 ==========
 let allQuestions = [];
 let allProviders = [];
+let databaseProviders = [];
 let latestRows = [];          // 来自 geo_question_provider_latest_runs
 let sourceMatchRules = [];    // 来源匹配规则
 let filteredRows = [];        // 过滤后的行
@@ -803,13 +823,111 @@ let batchState = {
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
-// ========== API Key ==========
-function getApiKey() {
-  return localStorage.getItem(GEO_API_KEY_STORAGE) || '';
+// ========== 接口配置（不同服务的密钥隔离保存） ==========
+const GEO_API_MODE_STORAGE = 'geo_api_mode_v1';
+const GEO_CUSTOM_API_STORAGE = 'geo_custom_api_v1';
+const GEO_CUSTOM_DEFAULTS = { base_url: 'https://llm.htffund.com/v1', model_name: 'deepseek-chat', key: '' };
+
+function getApiMode() {
+  return localStorage.getItem(GEO_API_MODE_STORAGE) === 'custom' ? 'custom' : 'ark';
 }
 
-function setApiKey(key) {
-  localStorage.setItem(GEO_API_KEY_STORAGE, String(key || '').trim());
+function getCustomApiConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(GEO_CUSTOM_API_STORAGE) || '{}');
+    return { ...GEO_CUSTOM_DEFAULTS, ...saved };
+  } catch { return { ...GEO_CUSTOM_DEFAULTS }; }
+}
+
+function getApiKey() {
+  return getApiMode() === 'custom'
+    ? String(getCustomApiConfig().key || '')
+    : localStorage.getItem(GEO_API_KEY_STORAGE) || '';
+}
+
+function normalizeApiBaseUrl(value) {
+  const url = new URL(String(value || '').trim());
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+    throw new Error('请填写不含账号、参数的 HTTPS 接口地址');
+  }
+  url.pathname = url.pathname.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
+  return url.toString().replace(/\/+$/, '');
+}
+
+function customProvider(config) {
+  const baseUrl = normalizeApiBaseUrl(config.base_url);
+  return {
+    provider_code: `custom:${new URL(baseUrl).host}${new URL(baseUrl).pathname}:${config.model_name}`,
+    provider_name: '自定义接口', base_url: baseUrl, model_name: config.model_name,
+    enabled: true, is_openai_compatible: true,
+  };
+}
+
+function getConfiguredProviders(providers) {
+  return getApiMode() === 'custom' ? [customProvider(getCustomApiConfig())] : providers;
+}
+
+function readApiForm() {
+  const mode = $('#apiModeInput').value;
+  const key = $('#apiKeyInput').value.trim();
+  if (!key || /^sk-x+$/i.test(key)) throw new Error('请填写真实 API Key，不能使用示例占位符');
+  if (mode === 'ark') return { mode, key };
+  const base_url = normalizeApiBaseUrl($('#apiBaseUrlInput').value);
+  const model_name = $('#apiModelInput').value.trim();
+  if (!model_name) throw new Error('请填写模型名称');
+  return { mode, key, base_url, model_name };
+}
+
+function fillApiForm() {
+  const custom = $('#apiModeInput').value === 'custom';
+  const config = getCustomApiConfig();
+  $('#apiBaseUrlInput').value = custom ? config.base_url : 'https://ark.cn-beijing.volces.com/api/v3';
+  $('#apiModelInput').value = custom ? config.model_name : '由原有模型配置决定';
+  $('#apiBaseUrlInput').disabled = !custom;
+  $('#apiModelInput').disabled = !custom;
+  $('#apiKeyInput').value = custom ? config.key : localStorage.getItem(GEO_API_KEY_STORAGE) || '';
+  $('#apiTestStatus').textContent = '';
+}
+
+async function requestChatCompletion(provider, messages, apiKey) {
+  const url = normalizeApiBaseUrl(provider.base_url) + '/chat/completions';
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 45000);
+  try {
+    const response = await fetch(url, {
+      method: 'POST', credentials: 'omit', redirect: 'error', signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({ model: provider.model_name, messages, temperature: 0.4 }),
+    });
+    if (!response.ok) {
+      const body = (await response.text()).split(apiKey).join('[密钥已隐藏]').slice(0, 240);
+      throw new Error(`调用失败：HTTP ${response.status} ${body}`);
+    }
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (typeof content !== 'string' || !content.trim()) throw new Error('接口未返回有效的回答内容');
+    return content;
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('模型请求超时（45秒），请稍后重试');
+    if (error instanceof TypeError) throw new Error('无法连接接口，请检查网络、公司网络访问要求及服务端跨域设置（CORS）');
+    throw error;
+  } finally { clearTimeout(timer); }
+}
+
+async function testApiConnection() {
+  const status = $('#apiTestStatus');
+  const button = $('#apiTestConnection');
+  let form;
+  try { form = readApiForm(); } catch (error) { status.textContent = error.message; return; }
+  const provider = form.mode === 'custom' ? customProvider(form) : databaseProviders[0];
+  if (!provider) { status.textContent = '没有可用的 Ark 模型配置'; return; }
+  button.disabled = true;
+  status.textContent = '正在测试连接…';
+  try {
+    await requestChatCompletion(provider, [{ role: 'user', content: '请只回复 OK。' }], form.key);
+    status.textContent = `连接成功：${provider.model_name}。测试未保存，也未新增监测记录。`;
+  } catch (error) { status.textContent = error.message; }
+  finally { button.disabled = false; }
 }
 
 // ========== 来源字典加载 ==========
@@ -1097,8 +1215,6 @@ function extractSourcesFromAnswer(answerText) {
 }
 // ========== 模型调用（带来源要求） ==========
 async function callProvider(provider, question, apiKey) {
-  const baseUrl = (provider.base_url || '').replace(/\/$/, '');
-  const url = baseUrl + '/chat/completions';
 
   const systemPrompt = `
 你是基金投研与财富管理领域助手。请回答用户问题，并严格遵守以下规则：
@@ -1130,29 +1246,10 @@ ${question}
 请务必在回答最后输出“【信息来源】”板块，且至少填写 1 条来源。
   `.trim();
 
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + apiKey
-    },
-    body: JSON.stringify({
-      model: provider.model_name,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.4
-    })
-  });
-
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error('调用失败: ' + resp.status + ' ' + text);
-  }
-
-  const json = await resp.json();
-  return json?.choices?.[0]?.message?.content || '';
+  return requestChatCompletion(provider, [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt },
+  ], apiKey);
 }
 // ========== 品牌提及判断 ==========
 function judgeTTF(rawResponse) {
@@ -1395,8 +1492,11 @@ async function loadData() {
   if (latestRes.error) console.error('加载最近运行结果失败:', latestRes.error);
 
   allQuestions = questionsRes.data || [];
-  allProviders = providersRes.data || [];
-  latestRows = latestRes.data || [];
+  databaseProviders = providersRes.data || [];
+  allProviders = getConfiguredProviders(databaseProviders);
+  latestRows = (latestRes.data || []).filter(row => allProviders.some(provider =>
+    provider.provider_code === row.provider && provider.model_name === row.model_name
+  ));
 
   applyFilters();
   renderStats();
@@ -1648,7 +1748,7 @@ function renderFilterOptions() {
 async function runSingleQuestion(qid) {
   const apiKey = getApiKey();
   if (!apiKey) {
-    alert('请先设置 Ark API Key');
+    alert('请先配置当前接口的 API Key');
     openApiKeyModal();
     return;
   }
@@ -1694,7 +1794,7 @@ async function runSingleQuestion(qid) {
 async function batchRunAll() {
   const apiKey = getApiKey();
   if (!apiKey) {
-    alert('请先设置 Ark API Key');
+    alert('请先配置当前接口的 API Key');
     openApiKeyModal();
     return;
   }
@@ -1778,7 +1878,7 @@ function updateBatchProgressUI(done, total, questionText, providerText) {
 async function runSelected() {
   const apiKey = getApiKey();
   if (!apiKey) {
-    alert('请先设置 Ark API Key');
+    alert('请先配置当前接口的 API Key');
     openApiKeyModal();
     return;
   }
@@ -1985,15 +2085,27 @@ async function saveQuestionHandler() {
   }
 }
 
-// ========== API Key 弹窗 ==========
+// ========== 接口配置弹窗 ==========
 function openApiKeyModal() {
-  $('#apiKeyInput').value = getApiKey();
+  if (batchState.running) { alert('运行中请等待完成后再修改接口配置'); return; }
+  $('#apiModeInput').value = localStorage.getItem(GEO_API_MODE_STORAGE) || 'custom';
+  fillApiForm();
   openModal('apiKeyModal');
 }
 
-function saveApiKeyHandler() {
-  setApiKey($('#apiKeyInput').value);
-  closeModal('apiKeyModal');
+async function saveApiKeyHandler() {
+  if (batchState.running) return;
+  try {
+    const form = readApiForm();
+    if (form.mode === 'custom') {
+      localStorage.setItem(GEO_CUSTOM_API_STORAGE, JSON.stringify({
+        base_url: form.base_url, model_name: form.model_name, key: form.key,
+      }));
+    } else { localStorage.setItem(GEO_API_KEY_STORAGE, form.key); }
+    localStorage.setItem(GEO_API_MODE_STORAGE, form.mode);
+    closeModal('apiKeyModal');
+    await loadData();
+  } catch (error) { $('#apiTestStatus').textContent = error.message; }
 }
 
 // ========== HTML 转义 ==========
@@ -2036,6 +2148,8 @@ function bindEvents() {
 
   // API Key 弹窗
   $('#apiKeySave').addEventListener('click', saveApiKeyHandler);
+  $('#apiModeInput').addEventListener('change', fillApiForm);
+  $('#apiTestConnection').addEventListener('click', testApiConnection);
   $('#apiKeyCancel').addEventListener('click', () => closeModal('apiKeyModal'));
   $('#apiKeyClose').addEventListener('click', () => closeModal('apiKeyModal'));
 
